@@ -6,13 +6,13 @@ const REST_API = 'https://api.github.com';
 const CONFIG = {
   org: process.env.QA_PROJECT_ORG || process.env.PROJECT_ORG || 'ControleOnline',
   projectNumber: Number(process.env.QA_PROJECT_NUMBER || process.env.PROJECT_NUMBER || 1),
-  status: process.env.DEVOPS_UNTRACKED_STATUS || process.env.QA_UNTRACKED_STATUS || 'Developer',
+  status: process.env.DEVOPS_UNTRACKED_STATUS || process.env.QA_UNTRACKED_STATUS || 'Work',
   repository: process.env.GITHUB_REPOSITORY,
   refName: process.env.GITHUB_REF_NAME,
   sha: process.env.GITHUB_SHA,
   eventPath: process.env.GITHUB_EVENT_PATH,
   repairRefs: (process.env.PROJECT_REPAIR_REFS || '').split(',').map((item) => item.trim()).filter(Boolean),
-  repairStatus: process.env.PROJECT_REPAIR_STATUS || 'Developer',
+  repairStatus: process.env.PROJECT_REPAIR_STATUS || 'Work',
 };
 
 function token() {
@@ -224,7 +224,7 @@ async function createTrackingIssue(event) {
     'Fluxo obrigatório:',
     '1. Continuar a partir do branch criado pela automação: `task-{id}`.',
     '2. Abrir PR vinculado a esta tarefa.',
-    '3. Seguir o fluxo normal pelo ProjectV2, começando em `Developer`.',
+    '3. Seguir o fluxo normal pelo ProjectV2, começando em `Work` e aguardando captura pelo runner de `Developer`.',
   ].join('\n');
 
   return rest(`/repos/${CONFIG.repository}/issues`, {

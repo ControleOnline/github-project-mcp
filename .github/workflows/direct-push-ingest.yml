@@ -26,6 +26,6 @@ jobs:
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
           PROJECT_ORG: ControleOnline
           PROJECT_NUMBER: 1
-          DEVOPS_UNTRACKED_STATUS: Developer
-          PROJECT_REPAIR_STATUS: Developer
+          DEVOPS_UNTRACKED_STATUS: Work
+          PROJECT_REPAIR_STATUS: Work
           PROJECT_REPAIR_REFS: ControleOnline/cto-mcp#7,ControleOnline/cto-mcp#8,ControleOnline/cto-mcp#9,ControleOnline/cto-mcp#10,ControleOnline/cto-mcp#11,ControleOnline/cto-mcp#12,ControleOnline/app-community#98

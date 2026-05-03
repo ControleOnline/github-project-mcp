@@ -4,7 +4,7 @@ const REST_API = 'https://api.github.com';
 const CONFIG = {
   org: process.env.DEVOPS_PROJECT_ORG || process.env.QA_PROJECT_ORG || 'ControleOnline',
   projectNumber: Number(process.env.DEVOPS_PROJECT_NUMBER || process.env.QA_PROJECT_NUMBER || 1),
-  status: process.env.DEVOPS_UNTRACKED_STATUS || process.env.DEVOPS_TARGET_STATUS || process.env.QA_UNTRACKED_STATUS || process.env.QA_TARGET_STATUS || 'Developer',
+  status: process.env.DEVOPS_UNTRACKED_STATUS || process.env.DEVOPS_TARGET_STATUS || process.env.QA_UNTRACKED_STATUS || process.env.QA_TARGET_STATUS || 'Work',
   repository: process.env.GITHUB_REPOSITORY,
   refName: process.env.GITHUB_REF_NAME,
   sha: process.env.GITHUB_SHA,

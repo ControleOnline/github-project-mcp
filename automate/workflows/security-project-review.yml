@@ -1,0 +1,42 @@
+name: Security Project Review
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  security-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run security project review snapshot
+        env:
+          TOKEN_PROJECTS: ${{ secrets.TOKEN_PROJECTS }}
+          SECURITY_PROJECT_ORG: ControleOnline
+          SECURITY_PROJECT_NUMBER: 1
+          SECURITY_DRY_RUN: false
+          SECURITY_OUTPUT_DIR: ./.security-output
+          SECURITY_ANALYST_LOGINS: ''
+          SECURITY_USE_COPILOT: true
+          SECURITY_COPILOT_BASE_REF: master
+          SECURITY_COPILOT_MODEL: ''
+        run: node automate/scripts/security-project-review.mjs
+
+      - name: Upload security snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-project-review
+          path: ./.security-output/security-project-review.json

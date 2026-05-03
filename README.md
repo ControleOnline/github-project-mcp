@@ -1,10 +1,10 @@
 # github-project-mcp
 
-Scaffold mínimo para mover uma issue de um GitHub Project v2 para um status como `In Review`.
+Repositório padrão de publicação para scripts, workflows e políticas de automação de QA do ecossistema `ControleOnline`.
 
-## Onde usar
+## Onde publicar
 
-Você criou o repositório:
+Use este repositório como destino versionado padrão:
 
 - `https://github.com/ControleOnline/github-project-mcp`
 
@@ -12,16 +12,36 @@ Use o branch:
 
 - `master`
 
-## Arquivos deste scaffold
+## Variáveis esperadas
+
+O scaffold e as automações deste repositório devem preferir:
+
+- `TOKEN_PROJECTS`
+- `QA_PROJECT_ORG`
+- `QA_PROJECT_NUMBER`
+- `QA_TARGET_STATUS`
+
+## Arquivos principais
 
 - `package.json`
 - `src/index.js`
+- `automate/`
 
-## Como subir para o repositório
-
-No seu computador:
+## Exemplo de uso
 
 ```bash
-git clone https://github.com/ControleOnline/github-project-mcp
-cd github-project-mcp
-git checkout master
+node src/index.js ControleOnline ControleOnline app-community 100 1 "Quality Assurance"
+```
+
+Ou por variáveis de ambiente:
+
+```bash
+export TOKEN_PROJECTS=***
+export QA_PROJECT_ORG=ControleOnline
+export QA_PROJECT_NUMBER=1
+export QA_ISSUE_OWNER=ControleOnline
+export QA_ISSUE_REPO=app-community
+export QA_ISSUE_NUMBER=100
+export QA_TARGET_STATUS="Quality Assurance"
+node src/index.js
+```

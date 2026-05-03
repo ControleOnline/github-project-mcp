@@ -13,6 +13,7 @@ As regras-base dos agents ficam em [`automation/`](./automation/) e a política 
 
 ## Estrutura
 
+- `automate/developer/README.md`: política operacional do runner de `Developer`
 - `automate/quality-assurance.md`: política central do agente de QA
 - `automate/security-review.md`: política central do analista de segurança
 - `automate/project-status.md`: regras oficiais de roteamento para QA
@@ -20,8 +21,10 @@ As regras-base dos agents ficam em [`automation/`](./automation/) e a política 
 - `automate/pull-request-review.md`: regras de review para QA
 - `automate/security-pull-request-review.md`: regras de review para Security
 - `automate/staging-merge.md`: regras de promoção para `staging` via DevOps
+- `automate/scripts/developer-project-dispatch.mjs`: base executável do despacho de `Developer`
 - `automate/scripts/qa-project-review.mjs`: base executável do fluxo de QA
 - `automate/scripts/security-project-review.mjs`: base executável do fluxo de Security
+- `automate/workflows/developer-project-dispatch.yml`: workflow de `Developer`
 - `automate/workflows/qa-project-review.yml`: workflow de QA
 - `automate/workflows/security-project-review.yml`: workflow de Security
 
@@ -31,13 +34,14 @@ Os agents são disparados por GitHub Actions e usam o GitHub como fonte de verda
 
 Fluxo esperado:
 
-1. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
-2. Confirmar qual é o agente responsável atual da tarefa.
-3. Aplicar a política correspondente em `automation/` e `automate/`.
-4. Registrar comentário rastreável.
-5. Revisar PR quando aplicável.
-6. Mudar o agente responsável para o próximo passo correto.
-7. Só usar coluna para o passo final de `DevOps` -> `In Review`.
+1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não tenha responsável humano e não exista outra execução ativa do próprio `Developer` em `Work`.
+2. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
+3. Confirmar qual é o agente responsável atual da tarefa.
+4. Aplicar a política correspondente em `automation/` e `automate/`.
+5. Registrar comentário rastreável.
+6. Revisar PR quando aplicável.
+7. Mudar o agente responsável para o próximo passo correto.
+8. Só usar coluna para o passo final de `DevOps` -> `In Review`.
 
 ## Credenciais e secrets
 
@@ -52,6 +56,20 @@ O padrão atual é:
 Não trate arquivos locais de secrets como contrato do projeto. O contrato oficial é o secret configurado no GitHub.
 
 ## Variáveis usuais
+
+### Developer
+
+```bash
+DEVELOPER_PROJECT_ORG=ControleOnline
+DEVELOPER_PROJECT_NUMBER=1
+DEVELOPER_DRY_RUN=false
+DEVELOPER_WORK_STATUS=Work
+DEVELOPER_AGENT_LOGIN=copilot-swe-agent
+DEVELOPER_AGENT_LOGINS=copilot-swe-agent
+DEVELOPER_COPILOT_BASE_REF=master
+DEVELOPER_COPILOT_MODEL=
+DEVELOPER_OUTPUT_DIR=./.developer-output
+```
 
 ### QA
 
@@ -97,6 +115,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 
 - ProjectV2 deve ser lido por GraphQL sempre que possível.
 - Busca textual não substitui a associação real do agente responsável nem a coluna final real quando ela for usada.
+- `Developer` não deve capturar tasks em `Work` que estejam atribuídas a pessoas.
 - Cada agent só pode concluir a task repassando para um próximo agent válido, ou para `In Review` no caso do DevOps.
 - O fluxo de Security pode acionar o Copilot cloud agent para aprofundar a investigação antes da decisão final, quando configurado.
 - Quando a automação for mais limitada do que a política, a política em `automate/*.md` prevalece.

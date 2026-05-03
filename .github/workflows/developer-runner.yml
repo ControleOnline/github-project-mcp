@@ -1,0 +1,37 @@
+name: Developer Project Runner
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+
+jobs:
+  developer-runner:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: node src/developer-runner.js
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          DEVELOPER_PROJECT_ORG: ControleOnline
+          DEVELOPER_PROJECT_NUMBER: 1
+          DEVELOPER_DRY_RUN: false
+          DEVELOPER_WORK_STATUS: Work
+          DEVELOPER_AGENT_LOGIN: copilot-swe-agent
+          DEVELOPER_AGENT_LOGINS: copilot-swe-agent
+          DEVELOPER_COPILOT_BASE_REF: master
+          DEVELOPER_COPILOT_MODEL: ''
+          DEVELOPER_OUTPUT_DIR: ./.developer-output
+
+      - name: Upload developer snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: developer-project-dispatch
+          path: ./.developer-output/developer-project-dispatch.json

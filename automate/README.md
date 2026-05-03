@@ -11,6 +11,7 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 
 ## Arquivos
 
+- `developer/README.md`: política operacional do runner de `Developer`
 - `quality-assurance.md`: política central de QA
 - `security-review.md`: política central do analista de segurança
 - `project-status.md`: regras de transição usadas por QA
@@ -18,8 +19,10 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 - `pull-request-review.md`: critérios de `APPROVE` ou `REQUEST_CHANGES` em QA
 - `security-pull-request-review.md`: critérios de review em Security
 - `staging-merge.md`: regra de merge obrigatório em `staging`
+- `scripts/developer-project-dispatch.mjs`: despacha uma task parada em `Work` para o agent `Developer`
 - `scripts/qa-project-review.mjs`: esqueleto executável da revisão de QA
 - `scripts/security-project-review.mjs`: coletor de contexto e executor do fluxo de Security
+- `workflows/developer-project-dispatch.yml`: workflow base para `Developer`
 - `workflows/qa-project-review.yml`: workflow base para QA
 - `workflows/security-project-review.yml`: workflow base para Security
 
@@ -60,6 +63,16 @@ Esta base está apontada para:
 
 ## Variáveis opcionais
 
+### Developer
+
+- `DEVELOPER_DRY_RUN`: quando `true`, apenas gera snapshot e previsão da próxima atribuição. Padrão: `true`
+- `DEVELOPER_WORK_STATUS`: nome da coluna de entrada para despacho do `Developer`. Padrão: `Work`
+- `DEVELOPER_AGENT_LOGIN`: login preferencial do agent a ser atribuído. Padrão: `copilot-swe-agent`
+- `DEVELOPER_AGENT_LOGINS`: lista de logins tratados como agents pelo runner
+- `DEVELOPER_COPILOT_BASE_REF`: branch base para a sessão do Copilot. Padrão: `master`
+- `DEVELOPER_COPILOT_MODEL`: modelo opcional do Copilot cloud agent, quando suportado
+- `DEVELOPER_OUTPUT_DIR`: diretório do artefato JSON da rodada
+
 ### QA
 
 - `QA_DRY_RUN`: quando `true`, apenas gera snapshot e previsão das decisões. Padrão: `true`
@@ -79,6 +92,7 @@ Esta base está apontada para:
 ## Observações
 
 - GraphQL continua sendo o caminho preferencial para leitura e escrita do ProjectV2.
+- O agente de Developer entra pela coluna `Work`, mas a execução real passa a ser controlada pela atribuição ao agent.
 - O agente de QA decide entre `Developer`, `Security` e `DevOps`.
 - O agente de Security decide entre `Developer` e `Quality Assurance`.
 - O agente de DevOps é o único que deve mover a coluna para `In Review`.

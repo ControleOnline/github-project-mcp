@@ -71,6 +71,14 @@ Runner
 
 Arquivo principal de lógica em `automate`
 
+Developer
+
+Capturar a próxima task elegível em `Work`, respeitar ownership humano, atribuir o agent correto e iniciar a execução operacional
+
+`.github/workflows/developer-runner.yml` -> executa `node src/developer-runner.js`
+
+`automate/scripts/developer-project-dispatch.mjs`
+
 Q.A.
 
 Avaliar itens em Quality Assurance, checar PRs, checks e dependência de aprovação de segurança, e decidir encaminhamento entre Developer, Security e Staging

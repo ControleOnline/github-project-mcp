@@ -36,7 +36,9 @@ https://github.com/ControleOnline/github-project-mcp
 
 - `automation/`: regra-base dos agents `developer`, `security`, `qa` e `devops`
 - `automate/`: políticas operacionais, runners e workflows
+- `src/developer-runner.js`: despacha a próxima task elegível de `Work` para o agent `Developer`
 - `src/direct-push-ingest.js`: transforma alteração sem tarefa em issue e branch `task-{issue_number}`
+- `.github/workflows/developer-runner.yml`: runner recorrente do Developer
 - `.github/workflows/qa-runner.yml`: runner recorrente do QA
 - `.github/workflows/security-runner.yml`: runner recorrente do Security
 - `.github/workflows/direct-push-ingest.yml`: ingestor de push sem tarefa quando instalado no repositório alvo

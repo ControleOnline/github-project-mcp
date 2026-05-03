@@ -118,15 +118,6 @@ function detectReviewTarget() {
 }
 
 function detectDefaultBranch(repoPath, declaredBranch) {
-  if (declaredBranch) {
-    return declaredBranch;
-  }
-
-  const head = git(repoPath, ["symbolic-ref", "refs/remotes/origin/HEAD"]);
-  if (head) {
-    return head.replace("refs/remotes/origin/", "");
-  }
-
   return "master";
 }
 

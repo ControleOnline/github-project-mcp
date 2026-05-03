@@ -1,0 +1,26 @@
+name: Direct Push Ingest
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - name: Ingest direct push
+        run: node src/direct-push-ingest.js
+        env:
+          TOKEN_PROJECTS: ${{ secrets.TOKEN_PROJECTS }}
+          QA_PROJECT_ORG: ControleOnline
+          QA_PROJECT_NUMBER: 1

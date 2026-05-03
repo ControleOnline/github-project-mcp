@@ -32,7 +32,7 @@ jobs:
           DEVELOPER_DRY_RUN: false
           DEVELOPER_WORK_STATUS: Work
           DEVELOPER_AGENT_LOGIN: copilot-swe-agent
-          DEVELOPER_AGENT_LOGINS: copilot-swe-agent
+          DEVELOPER_AGENT_LOGINS: copilot-swe-agent,copilot
           DEVELOPER_COPILOT_BASE_REF: master
           DEVELOPER_COPILOT_MODEL: ''
           DEVELOPER_OUTPUT_DIR: ./.developer-output

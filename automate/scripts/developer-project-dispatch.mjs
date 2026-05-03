@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const GITHUB_API_URL = 'https://api.github.com/graphql';
 const DEFAULT_AGENT_LOGIN = 'copilot-swe-agent';
+const DEFAULT_AGENT_LOGINS = 'copilot-swe-agent,copilot';
 
 function env(name, fallback = '') {
   return (process.env[name] || fallback).trim();
@@ -274,7 +275,7 @@ async function main() {
   const workStatus = env('DEVELOPER_WORK_STATUS', 'Work');
   const preferredAgentLogin = env('DEVELOPER_AGENT_LOGIN', DEFAULT_AGENT_LOGIN).toLowerCase();
   const agentLogins = new Set(
-    parseCsv(env('DEVELOPER_AGENT_LOGINS', preferredAgentLogin)).map((login) => login.toLowerCase())
+    parseCsv(env('DEVELOPER_AGENT_LOGINS', DEFAULT_AGENT_LOGINS)).map((login) => login.toLowerCase())
   );
   const baseRef = env('DEVELOPER_COPILOT_BASE_REF', 'master');
   const model = env('DEVELOPER_COPILOT_MODEL');
@@ -284,7 +285,10 @@ async function main() {
   if (!project) throw new Error(`Project not found: ${org}/projects/${projectNumber}`);
 
   const workItems = sortByCreatedAt(listWorkItems(project, workStatus));
-  const activeItems = workItems.filter((item) => hasAgentAssignee(item.content, agentLogins));
+  const activeItems = workItems.filter((item) => {
+    if (!hasAgentAssignee(item.content, agentLogins)) return false;
+    return !hasHumanAssignee(item.content, agentLogins);
+  });
   const humanOwnedItems = workItems.filter((item) => hasHumanAssignee(item.content, agentLogins));
   const candidateItems = workItems.filter((item) => {
     if (hasAgentAssignee(item.content, agentLogins)) return false;
@@ -319,8 +323,7 @@ async function main() {
     return;
   }
 
-  const target = candidateItems[0];
-  if (!target) {
+  if (candidateItems.length === 0) {
     result.ok = true;
     result.skipped = true;
     result.reason = 'Nenhuma task elegível foi encontrada em Work.';
@@ -328,58 +331,74 @@ async function main() {
     console.log(JSON.stringify({ ok: true, skipped: true, reason: result.reason, outPath }, null, 2));
     return;
   }
+  result.assignmentAttempts = [];
 
-  const issue = target.content;
-  const issueRef = `${issue.repository.nameWithOwner}#${issue.number}`;
-  const actor = getAssignableActor(issue, preferredAgentLogin);
+  for (const target of candidateItems) {
+    const issue = target.content;
+    const issueRef = `${issue.repository.nameWithOwner}#${issue.number}`;
+    const actor = getAssignableActor(issue, preferredAgentLogin);
+    const targetRecord = serializeItem(target, agentLogins, preferredAgentLogin);
 
-  result.selectedItem = serializeItem(target, agentLogins, preferredAgentLogin);
+    if (!actor?.id) {
+      result.assignmentAttempts.push({
+        issue: targetRecord.issue,
+        status: 'skipped',
+        reason: `O agent ${preferredAgentLogin} não apareceu em suggestedActors para ${issue.repository.nameWithOwner}.`,
+      });
+      continue;
+    }
 
-  if (!actor?.id) {
-    result.ok = false;
-    result.skipped = true;
-    result.reason = `O agent ${preferredAgentLogin} não apareceu em suggestedActors para ${issue.repository.nameWithOwner}.`;
+    result.selectedItem = targetRecord;
+
+    if (!dryRun) {
+      await assignIssueToAgent(
+        issue.id,
+        actor.id,
+        issue.repository.id,
+        baseRef,
+        buildDeveloperInstructions(issueRef, issue.number),
+        model
+      );
+      await addIssueComment(issue.id, buildAssignmentComment(issueRef));
+      result.executed = true;
+    } else {
+      result.executed = false;
+      result.previewComment = buildAssignmentComment(issueRef);
+      result.previewInstructions = buildDeveloperInstructions(issueRef, issue.number);
+    }
+
+    result.ok = true;
+    result.assignedIssue = issueRef;
+    result.assignedAgent = preferredAgentLogin;
+    result.baseRef = baseRef;
+    result.assignmentAttempts.push({
+      issue: targetRecord.issue,
+      status: dryRun ? 'preview' : 'assigned',
+      reason: 'Primeira task elegível e atribuível encontrada.',
+    });
+
     const outPath = writeOutputFile(result);
-    console.log(JSON.stringify({ ok: false, skipped: true, reason: result.reason, outPath }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          dryRun,
+          assignedIssue: issueRef,
+          assignedAgent: preferredAgentLogin,
+          outPath,
+        },
+        null,
+        2
+      )
+    );
     return;
   }
 
-  if (!dryRun) {
-    await assignIssueToAgent(
-      issue.id,
-      actor.id,
-      issue.repository.id,
-      baseRef,
-      buildDeveloperInstructions(issueRef, issue.number),
-      model
-    );
-    await addIssueComment(issue.id, buildAssignmentComment(issueRef));
-    result.executed = true;
-  } else {
-    result.executed = false;
-    result.previewComment = buildAssignmentComment(issueRef);
-    result.previewInstructions = buildDeveloperInstructions(issueRef, issue.number);
-  }
-
-  result.ok = true;
-  result.assignedIssue = issueRef;
-  result.assignedAgent = preferredAgentLogin;
-  result.baseRef = baseRef;
-
+  result.ok = false;
+  result.skipped = true;
+  result.reason = 'Nenhuma task elegível em Work pôde ser atribuída ao agent configurado.';
   const outPath = writeOutputFile(result);
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        dryRun,
-        assignedIssue: issueRef,
-        assignedAgent: preferredAgentLogin,
-        outPath,
-      },
-      null,
-      2
-    )
-  );
+  console.log(JSON.stringify({ ok: false, skipped: true, reason: result.reason, outPath }, null, 2));
 }
 
 main().catch((error) => {

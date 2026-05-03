@@ -28,4 +28,9 @@ jobs:
           PROJECT_NUMBER: 1
           DEVOPS_UNTRACKED_STATUS: Work
           PROJECT_REPAIR_STATUS: Work
+          DEVELOPER_AGENT_LOGIN: copilot-swe-agent
+          DEVELOPER_AGENT_LOGINS: copilot-swe-agent,copilot
+          DEVELOPER_COPILOT_BASE_REF: master
+          DEVELOPER_COPILOT_MODEL: ''
+          DIRECT_PUSH_ASSIGN_DEVELOPER: true
           PROJECT_REPAIR_REFS: ControleOnline/cto-mcp#7,ControleOnline/cto-mcp#8,ControleOnline/cto-mcp#9,ControleOnline/cto-mcp#10,ControleOnline/cto-mcp#11,ControleOnline/cto-mcp#12,ControleOnline/app-community#98

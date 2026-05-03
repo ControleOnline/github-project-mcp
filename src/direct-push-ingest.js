@@ -13,6 +13,14 @@ const CONFIG = {
   eventPath: process.env.GITHUB_EVENT_PATH,
   repairRefs: (process.env.PROJECT_REPAIR_REFS || '').split(',').map((item) => item.trim()).filter(Boolean),
   repairStatus: process.env.PROJECT_REPAIR_STATUS || 'Work',
+  developerAgentLogin: (process.env.DEVELOPER_AGENT_LOGIN || 'copilot-swe-agent').trim().toLowerCase(),
+  developerAgentLogins: (process.env.DEVELOPER_AGENT_LOGINS || 'copilot-swe-agent,copilot')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean),
+  developerBaseRef: process.env.DEVELOPER_COPILOT_BASE_REF || 'master',
+  developerModel: process.env.DEVELOPER_COPILOT_MODEL || '',
+  autoAssignDeveloper: (process.env.DIRECT_PUSH_ASSIGN_DEVELOPER || 'true').toLowerCase() === 'true',
 };
 
 function token() {
@@ -100,6 +108,11 @@ async function loadProjectItems() {
                   number
                   title
                   url
+                  assignees(first:20) {
+                    nodes {
+                      login
+                    }
+                  }
                   repository { nameWithOwner }
                 }
                 ... on PullRequest {
@@ -146,6 +159,22 @@ function itemRef(item) {
   return `${content.repository.nameWithOwner}#${content.number}`;
 }
 
+function assigneeLogins(content) {
+  return (content?.assignees?.nodes || [])
+    .map((assignee) => (assignee?.login || '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function hasDeveloperAgentAssignee(content) {
+  const known = new Set(CONFIG.developerAgentLogins);
+  return assigneeLogins(content).some((login) => known.has(login));
+}
+
+function hasHumanAssignee(content) {
+  const known = new Set(CONFIG.developerAgentLogins);
+  return assigneeLogins(content).some((login) => !known.has(login));
+}
+
 async function addIssueToProject(project, issueNodeId) {
   const data = await gql(`
     mutation($projectId:ID!, $contentId:ID!) {
@@ -173,6 +202,79 @@ async function moveProjectItem(project, itemId, targetStatus) {
   `, { projectId: project.id, itemId, fieldId: field.id, optionId: option.id });
 }
 
+async function getRepositoryAssignableActor(repositoryFullName) {
+  const [owner, name] = repositoryFullName.split('/');
+  const data = await gql(`
+    query($owner:String!, $name:String!) {
+      repository(owner:$owner, name:$name) {
+        id
+        nameWithOwner
+        suggestedActors(capabilities:[CAN_BE_ASSIGNED], first:20) {
+          nodes {
+            __typename
+            login
+            ... on Bot { id }
+            ... on User { id }
+          }
+        }
+      }
+    }
+  `, { owner, name });
+
+  const repository = data?.repository;
+  if (!repository) return null;
+  const actor = (repository.suggestedActors?.nodes || []).find(
+    (candidate) => candidate?.login?.toLowerCase() === CONFIG.developerAgentLogin
+  );
+  return actor?.id ? { repositoryId: repository.id, actorId: actor.id } : null;
+}
+
+async function assignIssueToDeveloper(issueId, repositoryId, actorId, issueRef, issueNumber) {
+  const customInstructions = [
+    `Atue como o agent Developer da ControleOnline para a issue ${issueRef}.`,
+    'Antes de agir, leia e siga `.github/agents/developer.agent.md` no repositório alvo.',
+    'Leia também o `AGENTS.md` mais específico do código afetado.',
+    `Trabalhe a partir do branch \`task-${issueNumber}\` derivado de \`master\`, reutilizando-o quando ele já existir.`,
+    'Use GitHub como fonte de verdade para issue, PR, comentários, branch e evidências.',
+    'Ao concluir a implementação com evidência suficiente, repasse a issue para o agent Security.',
+  ].join(' ');
+
+  await gql(`
+    mutation(
+      $issueId:ID!,
+      $actorId:ID!,
+      $repositoryId:ID!,
+      $baseRef:String!,
+      $customInstructions:String!,
+      $model:String
+    ) {
+      replaceActorsForAssignable(input: {
+        assignableId: $issueId,
+        actorIds: [$actorId],
+        agentAssignment: {
+          targetRepositoryId: $repositoryId,
+          baseRef: $baseRef,
+          customInstructions: $customInstructions,
+          model: $model
+        }
+      }) {
+        assignable {
+          ... on Issue {
+            id
+          }
+        }
+      }
+    }
+  `, {
+    issueId,
+    actorId,
+    repositoryId,
+    baseRef: CONFIG.developerBaseRef,
+    customInstructions,
+    model: CONFIG.developerModel || null,
+  });
+}
+
 async function repairConfiguredProjectItems() {
   if (CONFIG.repairRefs.length === 0) return [];
   const wanted = new Set(CONFIG.repairRefs.map((ref) => ref.toLowerCase()));
@@ -192,6 +294,17 @@ async function repairConfiguredProjectItems() {
   }
 
   return repairs;
+}
+
+async function hasActiveDeveloperExecution() {
+  const project = await loadProjectItems();
+  return (project.items.nodes || []).some((item) => {
+    if (statusOf(item)?.toLowerCase() !== CONFIG.status.toLowerCase()) return false;
+    const content = item.content;
+    if (!content || content.__typename !== 'Issue') return false;
+    if (!hasDeveloperAgentAssignee(content)) return false;
+    return !hasHumanAssignee(content);
+  });
 }
 
 function readEvent() {
@@ -268,6 +381,8 @@ async function main() {
   const itemId = await addIssueToProject(project, issue.node_id);
   await moveProjectItem(project, itemId, CONFIG.status);
   const branch = await createTaskBranch(issue.number);
+  let developerAssigned = false;
+  let developerAssignmentReason = null;
 
   await rest(`/repos/${CONFIG.repository}/issues/${issue.number}/comments`, {
     method: 'POST',
@@ -276,6 +391,26 @@ async function main() {
     }),
   });
 
+  if (CONFIG.autoAssignDeveloper) {
+    if (await hasActiveDeveloperExecution()) {
+      developerAssignmentReason = 'Já existe task do Developer em execução em Work.';
+    } else {
+      const assignable = await getRepositoryAssignableActor(CONFIG.repository);
+      if (!assignable) {
+        developerAssignmentReason = `O agent ${CONFIG.developerAgentLogin} não apareceu em suggestedActors para ${CONFIG.repository}.`;
+      } else {
+        await assignIssueToDeveloper(
+          issue.node_id,
+          assignable.repositoryId,
+          assignable.actorId,
+          `${CONFIG.repository}#${issue.number}`,
+          issue.number
+        );
+        developerAssigned = true;
+      }
+    }
+  }
+
   console.log(JSON.stringify({
     ok: true,
     issue: issue.html_url,
@@ -283,6 +418,8 @@ async function main() {
     branchCreated: branch.created,
     project: `${CONFIG.org}/projects/${CONFIG.projectNumber}`,
     status: CONFIG.status,
+    developerAssigned,
+    developerAssignmentReason,
     repairs,
   }, null, 2));
 }

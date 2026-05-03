@@ -1,20 +1,28 @@
 import fs from 'fs';
 
 const GITHUB_API_URL = 'https://api.github.com/graphql';
+const DEFAULT_ORG = 'ControleOnline';
+const DEFAULT_PROJECT_NUMBER = 1;
+const DEFAULT_TARGET_STATUS = 'Quality Assurance';
+
+function env(name, fallback = '') {
+  return (process.env[name] || fallback).trim();
+}
 
 function getGithubToken() {
-  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim();
-  if (process.env.GH_TOKEN) return process.env.GH_TOKEN.trim();
+  if (env('TOKEN_PROJECTS')) return env('TOKEN_PROJECTS');
+  if (env('GITHUB_TOKEN')) return env('GITHUB_TOKEN');
+  if (env('GH_TOKEN')) return env('GH_TOKEN');
 
-  const fallbackPath = process.env.GITHUB_TOKEN_FILE || './githubtoken.key';
+  const fallbackPath = env('TOKEN_PROJECTS_FILE') || env('GITHUB_TOKEN_FILE') || './githubtoken.key';
   if (fs.existsSync(fallbackPath)) {
     return fs.readFileSync(fallbackPath, 'utf8').trim();
   }
 
-  throw new Error('GitHub token not found. Set GITHUB_TOKEN, GH_TOKEN, or GITHUB_TOKEN_FILE.');
+  throw new Error('GitHub token not found. Set TOKEN_PROJECTS, GITHUB_TOKEN, GH_TOKEN, TOKEN_PROJECTS_FILE, or GITHUB_TOKEN_FILE.');
 }
 
-async function githubGraphQL(query, variables) {
+async function githubGraphQL(query, variables = {}) {
   const token = getGithubToken();
   const response = await fetch(GITHUB_API_URL, {
     method: 'POST',
@@ -27,7 +35,6 @@ async function githubGraphQL(query, variables) {
   });
 
   const json = await response.json();
-
   if (!response.ok || json.errors) {
     throw new Error(JSON.stringify({ status: response.status, errors: json.errors || json }, null, 2));
   }
@@ -168,11 +175,25 @@ async function updateProjectItemStatus({ org, owner, repo, issueNumber, projectN
   };
 }
 
-async function main() {
-  const [org, owner, repo, issueNumberRaw, projectNumberRaw, targetStatus = 'In Review'] = process.argv.slice(2);
+function parseCli() {
+  const [orgArg, ownerArg, repoArg, issueNumberArg, projectNumberArg, targetStatusArg] = process.argv.slice(2);
 
-  if (!org || !owner || !repo || !issueNumberRaw || !projectNumberRaw) {
-    console.error('Usage: node src/index.js <org> <owner> <repo> <issue_number> <project_number> [target_status]');
+  return {
+    org: orgArg || env('QA_PROJECT_ORG', DEFAULT_ORG),
+    owner: ownerArg || env('QA_ISSUE_OWNER'),
+    repo: repoArg || env('QA_ISSUE_REPO'),
+    issueNumberRaw: issueNumberArg || env('QA_ISSUE_NUMBER'),
+    projectNumberRaw: projectNumberArg || env('QA_PROJECT_NUMBER', String(DEFAULT_PROJECT_NUMBER)),
+    targetStatus: targetStatusArg || env('QA_TARGET_STATUS', DEFAULT_TARGET_STATUS)
+  };
+}
+
+async function main() {
+  const { org, owner, repo, issueNumberRaw, projectNumberRaw, targetStatus } = parseCli();
+
+  if (!owner || !repo || !issueNumberRaw) {
+    console.error('Usage: node src/index.js [org] <owner> <repo> <issue_number> [project_number] [target_status]');
+    console.error('Or set QA_ISSUE_OWNER, QA_ISSUE_REPO, QA_ISSUE_NUMBER, QA_PROJECT_ORG, QA_PROJECT_NUMBER, and QA_TARGET_STATUS.');
     process.exit(1);
   }
 

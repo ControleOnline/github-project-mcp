@@ -1,3 +1,5 @@
+import { getAuthToken, githubApiVersion } from './github-app-auth.js';
+
 const GRAPHQL_API = 'https://api.github.com/graphql';
 const REST_API = 'https://api.github.com';
 
@@ -12,17 +14,11 @@ const CONFIG = {
   merge: (process.env.QA_AUTO_MERGE || 'true').toLowerCase() === 'true',
 };
 
-function token() {
-  const value = (process.env.TOKEN_PROJECTS || '').trim();
-  if (!value) throw new Error('TOKEN_PROJECTS is required');
-  return value;
-}
-
-function headers(extra = {}) {
+async function headers(extra = {}) {
   return {
-    Authorization: `Bearer ${token()}`,
+    Authorization: `Bearer ${await getAuthToken()}`,
     Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
+    'X-GitHub-Api-Version': githubApiVersion(),
     'User-Agent': 'github-project-mcp',
     ...extra,
   };
@@ -31,7 +27,7 @@ function headers(extra = {}) {
 async function gql(query, variables = {}) {
   const response = await fetch(GRAPHQL_API, {
     method: 'POST',
-    headers: headers({ 'Content-Type': 'application/json' }),
+    headers: await headers({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ query, variables }),
   });
   const json = await response.json();
@@ -44,7 +40,7 @@ async function gql(query, variables = {}) {
 async function rest(path, options = {}) {
   const response = await fetch(`${REST_API}${path}`, {
     ...options,
-    headers: headers({ 'Content-Type': 'application/json', ...(options.headers || {}) }),
+    headers: await headers({ 'Content-Type': 'application/json', ...(options.headers || {}) }),
   });
   const text = await response.text();
   const body = text ? JSON.parse(text) : null;
@@ -247,6 +243,7 @@ async function runBatch() {
   console.log(JSON.stringify({
     ok: true,
     mode: 'qa-autonomous-batch',
+    apiVersion: githubApiVersion(),
     project: `${CONFIG.org}/projects/${CONFIG.projectNumber}`,
     sourceStatus: CONFIG.sourceStatus,
     limit: CONFIG.limit,

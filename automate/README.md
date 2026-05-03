@@ -1,55 +1,80 @@
-# QA Automation
+# Automate
 
-Esta pasta concentra a politica e a base executavel da automacao de Quality Assurance para o ecossistema `ControleOnline`.
+Esta pasta concentra a política e a base executável dos agentes que rodam direto no GitHub no ecossistema `ControleOnline`.
+
+## Agentes cobertos
+
+- `Quality Assurance`: valida entrega, checks, composição entre PRs e promoção para `Staging`
+- `Security`: valida autorização, `securityFilter`, exposição de dados e promoção para `Quality Assurance`
 
 ## Arquivos
 
-- `quality-assurance.md`: politica central de QA
-- `project-status.md`: regras de transicao no ProjectV2
-- `pull-request-review.md`: criterio para `APPROVE` ou `REQUEST_CHANGES`
-- `staging-merge.md`: regra de merge obrigatorio em `staging`
-- `scripts/qa-project-review.mjs`: esqueleto executavel da revisao automatizada
-- `workflows/qa-project-review.yml`: workflow base para GitHub Actions
+- `quality-assurance.md`: política central de QA
+- `security-review.md`: política central do analista de segurança
+- `project-status.md`: regras de transição usadas por QA
+- `security-project-status.md`: regras de transição usadas por Security
+- `pull-request-review.md`: critérios de `APPROVE` ou `REQUEST_CHANGES` em QA
+- `security-pull-request-review.md`: critérios de review em Security
+- `staging-merge.md`: regra de merge obrigatório em `staging`
+- `scripts/qa-project-review.mjs`: esqueleto executável da revisão de QA
+- `scripts/security-project-review.mjs`: coletor de contexto e executor do fluxo de Security
+- `workflows/qa-project-review.yml`: workflow base para QA
+- `workflows/security-project-review.yml`: workflow base para Security
 
 ## Objetivo
 
-Permitir que o GitHub execute o fluxo de QA de forma padronizada:
+Permitir que o GitHub execute os fluxos de revisão de forma padronizada:
 
-1. localizar tasks em `Quality Assurance`
-2. encontrar issue, PRs e checks relacionados
-3. decidir entre `Developer`, `Security` e `Staging`
-4. aprovar ou reprovar PRs
-5. mover o item no ProjectV2
-6. preparar merges obrigatorios em `staging`
+1. localizar tasks na coluna correta
+2. encontrar issue, PRs, comentários, reviews, checks e arquivos relacionados
+3. aplicar a política do agente dono da etapa
+4. registrar evidência rastreável
+5. revisar PR quando aplicável
+6. mover o item no ProjectV2 para a próxima coluna obrigatória
 
 ## Secrets esperados
 
-O workflow base foi escrito para usar:
+O padrão atual de credenciais é:
 
-- `TOKEN_PROJECTS`: token com permissao para review, issues, contents e projects
+- `TOKEN_PROJECTS`: token principal para GraphQL, reviews, comentários e mudança de status no ProjectV2
 
-## Parametros padrao do projeto
+No GitHub Actions, a injeção esperada é:
 
-Esta base ja esta apontada para:
+- `${{ secrets.TOKEN_PROJECTS }}`
 
-- organizacao: `ControleOnline`
+Evite documentar caminhos antigos de arquivos locais de secret. Eles não são a fonte oficial de configuração deste projeto.
+
+## Parâmetros padrão do projeto
+
+Esta base está apontada para:
+
+- organização: `ControleOnline`
 - projeto: `https://github.com/orgs/ControleOnline/projects/1`
-- numero do ProjectV2: `1`
+- número do ProjectV2: `1`
 
-## Variaveis opcionais
+## Variáveis opcionais
 
-- `QA_DRY_RUN`: quando `true`, apenas gera snapshot e previsao das decisoes. Padrao: `true`
-- `QA_SECURITY_APPROVERS`: lista separada por virgula com os logins aceitos como aprovadores de seguranca
-- `QA_MERGE_TARGETS`: branches alvo de promocao operacional. Use `all` para considerar todos os branches
+### QA
 
-## Observacoes
+- `QA_DRY_RUN`: quando `true`, apenas gera snapshot e previsão das decisões. Padrão: `true`
+- `QA_SECURITY_APPROVERS`: logins aceitos como aprovadores explícitos de segurança
+- `QA_MERGE_TARGETS`: branches alvo de promoção operacional. Use `all` para considerar todos os branches
+- `QA_OUTPUT_DIR`: diretório do artefato JSON da rodada
 
-- A leitura e escrita do ProjectV2 devem continuar preferindo GraphQL.
-- O script atual ja consegue:
-- ler os cards em `Quality Assurance`
-- localizar PRs vinculados pela timeline da issue
-- avaliar checks publicados no commit atual
-- decidir entre `Developer`, `Security` e `Staging` com regra conservadora
-- comentar na issue, revisar PR e mover o card quando `QA_DRY_RUN=false`
-- registrar a intencao operacional de promocao com `QA_MERGE_TARGETS`, inclusive quando estiver em modo `all`
-- A politica manda mais do que a automacao. Se houver conflito, siga os arquivos `.md` desta pasta.
+### Security
+
+- `SECURITY_DRY_RUN`: quando `true`, só gera snapshot e decisão prevista
+- `SECURITY_ANALYST_LOGINS`: logins autorizados a registrar a decisão final estruturada
+- `SECURITY_OUTPUT_DIR`: diretório do artefato JSON da rodada
+- `SECURITY_USE_COPILOT`: quando `true`, tenta acionar o Copilot cloud agent para apoiar a análise
+- `SECURITY_COPILOT_BASE_REF`: branch base para a sessão do Copilot. Padrão: `master`
+- `SECURITY_COPILOT_MODEL`: modelo opcional do Copilot cloud agent, quando suportado
+
+## Observações
+
+- GraphQL continua sendo o caminho preferencial para leitura e escrita do ProjectV2.
+- O agente de QA decide entre `Developer`, `Security` e `Staging`.
+- O agente de Security decide entre `Developer` e `Quality Assurance`.
+- O fluxo de Security precisa ser conservador: ausência de evidência não vale como aprovação.
+- O script de Security foi deixado como base executável conservadora, espera uma decisão estruturada do analista e pode delegar investigação ao Copilot cloud agent quando configurado.
+- Quando houver conflito entre script e política, siga os arquivos `.md` desta pasta.

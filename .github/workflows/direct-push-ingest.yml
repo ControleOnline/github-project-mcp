@@ -19,8 +19,10 @@ jobs:
       - run: npm install
 
       - name: Ingest direct push
-        run: node src/direct-push-ingest.js
+        run: node src/direct-push-ingest-runner.js
         env:
-          TOKEN_PROJECTS: ${{ secrets.TOKEN_PROJECTS }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
           QA_PROJECT_ORG: ControleOnline
           QA_PROJECT_NUMBER: 1

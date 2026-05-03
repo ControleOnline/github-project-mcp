@@ -24,7 +24,7 @@ jobs:
           SECURITY_PROJECT_NUMBER: 1
           SECURITY_DRY_RUN: false
           SECURITY_OUTPUT_DIR: ./.security-output
-          SECURITY_ANALYST_LOGINS: ''
+          SECURITY_ANALYST_LOGINS: 'luizkim,copilot-swe-agent'
           SECURITY_USE_COPILOT: true
           SECURITY_COPILOT_BASE_REF: master
           SECURITY_COPILOT_MODEL: ''

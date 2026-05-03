@@ -4,11 +4,10 @@ Este repositório é a fonte oficial para automações, agents e normalização 
 
 ## Regra de credenciais
 
-- `TOKEN_PROJECTS` é um GitHub Actions Secret.
-- Nunca publicar, registrar, ecoar ou documentar o valor real do secret.
-- Nunca substituir `TOKEN_PROJECTS` por `GITHUB_TOKEN`.
-- Não usar fallbacks para outras variáveis ou arquivos locais.
-- Toda automação que escreve no GitHub, revisa PR, cria issue, cria branch, altera agente responsável ou faz merge deve receber `TOKEN_PROJECTS` exclusivamente via `secrets.TOKEN_PROJECTS` em GitHub Actions.
+- Nunca publicar, registrar, ecoar ou documentar o valor real de secrets ou tokens.
+- Em GitHub Actions, prefira as credenciais do GitHub App via `APP_ID`, `APP_INSTALLATION_ID` e `APP_PRIVATE_KEY`.
+- Quando o ambiente já fornecer token válido, use `GITHUB_TOKEN` ou `GH_TOKEN`.
+- Não depender de arquivos locais de credenciais dentro dos runners.
 
 ## Integração com Copilot Agents
 

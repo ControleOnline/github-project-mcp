@@ -45,9 +45,9 @@ Este repositório não deve documentar nem depender de caminhos antigos de secre
 
 O padrão atual é:
 
-- no GitHub Actions, a credencial principal entra pelo secret `TOKEN_PROJECTS`
-- localmente, os scripts leem a variável de ambiente `TOKEN_PROJECTS`
-- `GITHUB_TOKEN` e `GH_TOKEN` podem servir apenas como fallback operacional local, quando disponíveis
+- no GitHub Actions, a credencial principal entra por `APP_ID`, `APP_INSTALLATION_ID` e `APP_PRIVATE_KEY`
+- quando o ambiente já fornecer token válido, os scripts aceitam `GITHUB_TOKEN` ou `GH_TOKEN`
+- arquivos locais de credenciais não fazem parte do contrato do projeto
 
 Não trate arquivos locais de secrets como contrato do projeto. O contrato oficial é o secret configurado no GitHub.
 
@@ -78,7 +78,7 @@ SECURITY_COPILOT_MODEL=
 
 ## Execução local
 
-Execute os scripts Node em `automate/scripts/` com a variável de ambiente `TOKEN_PROJECTS` configurada no terminal.
+Execute os scripts Node em `automate/scripts/` com `GITHUB_TOKEN` ou `GH_TOKEN`, ou pelos runners que montam o token a partir do GitHub App.
 
 ## Copilot cloud agent no Security
 

@@ -152,7 +152,7 @@ Sugestao de implementacao complementar:
 
 ## Token padrao da automacao
 
-A automacao deve usar `TOKEN_PROJECTS` como credencial principal para GraphQL, reviews, comentarios e repasse do agent responsavel.
+A automacao deve usar credenciais validas do GitHub App ou um token ja injetado em `GITHUB_TOKEN`/`GH_TOKEN` para GraphQL, reviews, comentarios e repasse do agent responsavel.
 
 ## Branches alvo desta rodada
 

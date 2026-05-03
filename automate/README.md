@@ -39,11 +39,14 @@ Permitir que o GitHub execute os fluxos de revisão de forma padronizada:
 
 O padrão atual de credenciais é:
 
-- `TOKEN_PROJECTS`: token principal para GraphQL, reviews, comentários, atualização do agente responsável e mudança da coluna final quando aplicável
+- `APP_ID`, `APP_INSTALLATION_ID` e `APP_PRIVATE_KEY`: padrão para montar o token do GitHub App dentro dos runners
+- `GITHUB_TOKEN` ou `GH_TOKEN`: entrada operacional quando o token já vier pronto do ambiente
 
 No GitHub Actions, a injeção esperada é:
 
-- `${{ secrets.TOKEN_PROJECTS }}`
+- `${{ secrets.APP_ID }}`
+- `${{ secrets.APP_INSTALLATION_ID }}`
+- `${{ secrets.APP_PRIVATE_KEY }}`
 
 Evite documentar caminhos antigos de arquivos locais de secret. Eles não são a fonte oficial de configuração deste projeto.
 

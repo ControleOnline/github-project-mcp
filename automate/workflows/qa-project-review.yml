@@ -24,13 +24,15 @@ jobs:
 
       - name: Run QA project review snapshot
         env:
-          TOKEN_PROJECTS: ${{ secrets.TOKEN_PROJECTS }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
           QA_PROJECT_ORG: ControleOnline
           QA_PROJECT_NUMBER: 1
           QA_DRY_RUN: false
           QA_MERGE_TARGETS: all
           QA_OUTPUT_DIR: ./.qa-output
-        run: node automate/scripts/qa-project-review.mjs
+        run: node src/qa-runner.js
 
       - name: Upload QA snapshot artifact
         uses: actions/upload-artifact@v4

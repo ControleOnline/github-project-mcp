@@ -399,6 +399,18 @@ function findLatestDecision(issue, prs, analysts) {
   }
 
   for (const pr of prs) {
+    for (const comment of pr.comments?.nodes || []) {
+      const login = comment.author?.login?.toLowerCase() || '';
+      if (!isTrustedDecisionAuthor(login, analysts)) continue;
+      const structured = extractStructuredDecision(comment.body);
+      if (!structured) continue;
+      entries.push({
+        source: `comment on ${pr.repository.nameWithOwner}#${pr.number} by ${comment.author.login}`,
+        createdAt: comment.createdAt,
+        ...structured
+      });
+    }
+
     for (const review of pr.reviews?.nodes || []) {
       const login = review.author?.login?.toLowerCase() || '';
       if (!isTrustedDecisionAuthor(login, analysts)) continue;

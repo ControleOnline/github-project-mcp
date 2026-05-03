@@ -595,6 +595,7 @@ async function main() {
     const issueRef = `${repoFullName}#${issue.number}`;
     let copilotTriggered = false;
     let copilotTriggerError = null;
+    let activityLogged = false;
 
     if (useCopilot && decision.projectTarget === SOURCE_STATUS && !dryRun) {
       const copilotActor = getCopilotActor(context.repository);
@@ -664,9 +665,15 @@ async function main() {
       const optionId = getStatusOptionId(statusField, decision.projectTarget);
       await updateProjectItemStatus(project.id, item.id, statusField.id, optionId);
       decisionRecord.executed = true;
+      activityLogged = true;
     } else {
       decisionRecord.executed = false;
       decisionRecord.previewComment = issueComment;
+    }
+
+    if (!dryRun && !activityLogged && copilotTriggered) {
+      await addIssueComment(issue.id, issueComment);
+      decisionRecord.activityLogged = true;
     }
 
     decisions.push(decisionRecord);

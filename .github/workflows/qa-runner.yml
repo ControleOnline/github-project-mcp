@@ -13,14 +13,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm install
-      - run: node src/index.js
+      - run: node src/qa-runner.js
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
           QA_PROJECT_ORG: ControleOnline
           QA_PROJECT_NUMBER: 1
-          QA_TARGET_STATUS: Quality Assurance
-          QA_TASK_LIMIT: 5
+          QA_DRY_RUN: false
+          QA_MERGE_TARGETS: all
+          QA_OUTPUT_DIR: ./.qa-output
+
+      - name: Upload QA snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-project-review
+          path: ./.qa-output/qa-project-review.json

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+
 const GRAPHQL_API = 'https://api.github.com/graphql';
 const REST_API = 'https://api.github.com';
 
@@ -110,7 +112,6 @@ async function moveProjectItem(project, itemId, targetStatus) {
 function readEvent() {
   if (!CONFIG.eventPath) return null;
   try {
-    const fs = require('fs');
     return JSON.parse(fs.readFileSync(CONFIG.eventPath, 'utf8'));
   } catch {
     return null;
@@ -120,7 +121,7 @@ function readEvent() {
 function hasTaskReference(event) {
   if (/^task-\d+$/i.test(CONFIG.refName || '')) return true;
   const text = JSON.stringify(event || {});
-  return /(?:#\d+|task-\d+|close[sd]?\s+#\d+|fix(?:e[sd])?\s+#\d+)/i.test(text);
+  return /(?:#\d+|task-\d+|close[sd]?\s+#\d+|fix(?:e[sd])?\s+#\d+|ref(?:s|erences)?\s+#\d+)/i.test(text);
 }
 
 async function createTrackingIssue(event) {

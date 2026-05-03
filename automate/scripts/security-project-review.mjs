@@ -11,7 +11,7 @@ function env(name, fallback = '') {
 }
 
 function getToken() {
-  return env('TOKEN_PROJECTS') || env('GITHUB_TOKEN') || env('GH_TOKEN');
+  return env('GITHUB_TOKEN') || env('GH_TOKEN');
 }
 
 function parseCsv(value) {
@@ -33,7 +33,7 @@ function uniqBy(items, keyFn) {
 
 async function githubGraphQL(query, variables = {}, extraHeaders = {}) {
   const token = getToken();
-  if (!token) throw new Error('Missing token. Set TOKEN_PROJECTS.');
+  if (!token) throw new Error('Missing GitHub token. Set GITHUB_TOKEN or GH_TOKEN.');
 
   const response = await fetch(GITHUB_API_URL, {
     method: 'POST',

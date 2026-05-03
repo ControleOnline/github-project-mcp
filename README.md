@@ -43,8 +43,8 @@ Este repositório não deve documentar nem depender de caminhos antigos de secre
 
 O padrão atual é:
 
-- em GitHub Actions, a credencial principal entra por `${{ secrets.TOKEN_PROJECTS }}`
-- localmente, os scripts aceitam `TOKEN_PROJECTS`
+- no GitHub Actions, a credencial principal entra pelo secret `TOKEN_PROJECTS`
+- localmente, os scripts leem a variável de ambiente `TOKEN_PROJECTS`
 - `GITHUB_TOKEN` e `GH_TOKEN` podem servir apenas como fallback operacional local, quando disponíveis
 
 Não trate arquivos locais de secrets como contrato do projeto. O contrato oficial é o secret configurado no GitHub.
@@ -76,17 +76,20 @@ SECURITY_COPILOT_MODEL=
 
 ## Execução local
 
-### QA
+Execute os scripts Node em `automate/scripts/` com a variável de ambiente `TOKEN_PROJECTS` configurada no terminal.
 
-```bash
-TOKEN_PROJECTS=*** node automate/scripts/qa-project-review.mjs
+## Copilot cloud agent no Security
+
+Quando `SECURITY_USE_COPILOT=true`, o fluxo de Security tenta acionar o Copilot cloud agent nas issues que ainda não têm decisão estruturada do analista. A automação atribui a issue ao `copilot-swe-agent[bot]` com `agent_assignment`, define o repositório alvo, usa `SECURITY_COPILOT_BASE_REF` como branch base e envia instruções de revisão de segurança.
+
+O Copilot é usado para aprofundar a investigação, não para pular a política do projeto. A transição oficial continua conservadora: o item só sai de `Security` quando houver evidência estruturada com:
+
+```text
+SECURITY_DECISION: APPROVED|REJECTED
+PROJECT_STATUS: Quality Assurance|Developer
 ```
 
-### Security
-
-```bash
-TOKEN_PROJECTS=*** node automate/scripts/security-project-review.mjs
-```
+Na rodada seguinte, o script lê essa evidência, aplica as regras de `automate/security-project-status.md` e move o item para `Quality Assurance` ou `Developer`.
 
 ## Regras importantes
 

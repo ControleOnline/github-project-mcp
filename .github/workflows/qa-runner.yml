@@ -2,20 +2,6 @@ name: QA Project Runner
 
 on:
   workflow_dispatch:
-    inputs:
-      owner:
-        description: 'Repository owner'
-        required: true
-      repo:
-        description: 'Repository name'
-        required: true
-      issue_number:
-        description: 'Issue number'
-        required: true
-      target_status:
-        description: 'Target status'
-        required: false
-        default: 'Quality Assurance'
   schedule:
     - cron: '*/15 * * * *'
 
@@ -35,24 +21,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Validate TOKEN_PROJECTS
-        run: |
-          if [ -z "$TOKEN_PROJECTS" ]; then
-            echo "TOKEN_PROJECTS is not set"
-            exit 1
-          fi
-        env:
-          TOKEN_PROJECTS: ${{ secrets.TOKEN_PROJECTS }}
-
-      - name: Run QA action
-        run: |
-          node src/index.js \
-            ${{ inputs.owner || env.QA_ISSUE_OWNER }} \
-            ${{ inputs.repo || env.QA_ISSUE_REPO }} \
-            ${{ inputs.issue_number || env.QA_ISSUE_NUMBER }} \
-            1 \
-            "${{ inputs.target_status }}"
+      - name: Run QA batch
+        run: node src/index.js
         env:
           TOKEN_PROJECTS: ${{ secrets.TOKEN_PROJECTS }}
           QA_PROJECT_ORG: ControleOnline
           QA_PROJECT_NUMBER: 1
+          QA_TARGET_STATUS: Quality Assurance
+          QA_TASK_LIMIT: 5

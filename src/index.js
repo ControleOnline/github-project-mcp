@@ -1,5 +1,3 @@
-import fs from 'fs';
-
 const GITHUB_API_URL = 'https://api.github.com/graphql';
 const DEFAULT_ORG = 'ControleOnline';
 const DEFAULT_PROJECT_NUMBER = 1;
@@ -10,16 +8,13 @@ function env(name, fallback = '') {
 }
 
 function getGithubToken() {
-  if (env('TOKEN_PROJECTS')) return env('TOKEN_PROJECTS');
-  if (env('GITHUB_TOKEN')) return env('GITHUB_TOKEN');
-  if (env('GH_TOKEN')) return env('GH_TOKEN');
+  const token = env('TOKEN_PROJECTS');
 
-  const fallbackPath = env('TOKEN_PROJECTS_FILE') || env('GITHUB_TOKEN_FILE') || './githubtoken.key';
-  if (fs.existsSync(fallbackPath)) {
-    return fs.readFileSync(fallbackPath, 'utf8').trim();
+  if (!token) {
+    throw new Error('TOKEN_PROJECTS is required');
   }
 
-  throw new Error('GitHub token not found. Set TOKEN_PROJECTS, GITHUB_TOKEN, GH_TOKEN, TOKEN_PROJECTS_FILE, or GITHUB_TOKEN_FILE.');
+  return token;
 }
 
 async function githubGraphQL(query, variables = {}) {
@@ -192,8 +187,8 @@ async function main() {
   const { org, owner, repo, issueNumberRaw, projectNumberRaw, targetStatus } = parseCli();
 
   if (!owner || !repo || !issueNumberRaw) {
-    console.error('Usage: node src/index.js [org] <owner> <repo> <issue_number> [project_number] [target_status]');
-    console.error('Or set QA_ISSUE_OWNER, QA_ISSUE_REPO, QA_ISSUE_NUMBER, QA_PROJECT_ORG, QA_PROJECT_NUMBER, and QA_TARGET_STATUS.');
+    console.error('Usage: TOKEN_PROJECTS=<token> node src/index.js [org] <owner> <repo> <issue_number> [project_number] [target_status]');
+    console.error('Or set TOKEN_PROJECTS, QA_ISSUE_OWNER, QA_ISSUE_REPO, QA_ISSUE_NUMBER, QA_PROJECT_ORG, QA_PROJECT_NUMBER, and QA_TARGET_STATUS.');
     process.exit(1);
   }
 

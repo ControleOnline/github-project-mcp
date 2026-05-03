@@ -31,6 +31,59 @@ function uniqBy(items, keyFn) {
   });
 }
 
+function parseDecisionTarget(text = '') {
+  if (/project_status:\s*quality assurance/i.test(text) || /quality assurance/i.test(text)) {
+    return DECISION_QA;
+  }
+  if (/project_status:\s*developer/i.test(text) || /developer/i.test(text)) {
+    return DECISION_DEVELOPER;
+  }
+  return null;
+}
+
+function extractStructuredDecision(text = '') {
+  const normalized = text.replace(/\r/g, '');
+  const strictDecision = normalized.match(/SECURITY_DECISION:\s*(APPROVED|REJECTED)/i);
+  const strictTarget = normalized.match(/PROJECT_STATUS:\s*(Quality Assurance|Developer)/i);
+  if (strictDecision && strictTarget) {
+    return {
+      decision: strictDecision[1].toUpperCase(),
+      targetStatus: strictTarget[1]
+    };
+  }
+
+  if (!/(security|seguran[cç]a)/i.test(normalized)) return null;
+
+  if (/\baprovad[ao]\b/i.test(normalized)) {
+    return {
+      decision: 'APPROVED',
+      targetStatus: parseDecisionTarget(normalized) || DECISION_QA
+    };
+  }
+
+  if (/\breprovad[ao]\b/i.test(normalized)) {
+    return {
+      decision: 'REJECTED',
+      targetStatus: parseDecisionTarget(normalized) || DECISION_DEVELOPER
+    };
+  }
+
+  return null;
+}
+
+function isTrustedDecisionAuthor(login, analysts) {
+  if (!login) return false;
+  if (login === COPILOT_LOGIN) return true;
+  if (analysts.size === 0) return true;
+  return analysts.has(login);
+}
+
+function decisionTimestamp(entry) {
+  const value = entry.createdAt || entry.submittedAt || null;
+  const parsed = value ? Date.parse(value) : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 async function githubGraphQL(query, variables = {}, extraHeaders = {}) {
   const token = getToken();
   if (!token) throw new Error('Missing GitHub token. Set GITHUB_TOKEN or GH_TOKEN.');
@@ -199,6 +252,7 @@ async function getIssueSecurityContext(owner, repo, issueNumber) {
                           login
                         }
                         body
+                        createdAt
                       }
                     }
                     reviews(first:50) {
@@ -209,6 +263,7 @@ async function getIssueSecurityContext(owner, repo, issueNumber) {
                         }
                         state
                         body
+                        submittedAt
                       }
                     }
                     files(first:100) {
@@ -270,7 +325,10 @@ function buildCopilotInstructions(issueRef) {
     `Analise a issue ${issueRef} com foco em seguranca.`,
     'Revise autorizacao, controle de acesso, exposicao de dados, securityFilter e regras sensiveis de negocio.',
     'Considere risco de IDOR, privilege escalation, mass assignment, injecoes e alteracao indevida de fluxo.',
-    'Se encontrar lacunas relevantes, deixe isso claro na sua saida.'
+    'Ao concluir, publique a decisao diretamente na issue ou no PR vinculado usando exatamente estas linhas:',
+    'SECURITY_DECISION: APPROVED ou SECURITY_DECISION: REJECTED',
+    'PROJECT_STATUS: Quality Assurance ou PROJECT_STATUS: Developer',
+    'Depois dessas linhas, acrescente um resumo curto com escopo, riscos avaliados e motivo da decisao final.'
   ].join(' ');
 }
 
@@ -325,25 +383,12 @@ function getStatusOptionId(statusField, targetStatus) {
   return option.id;
 }
 
-function extractStructuredDecision(text = '') {
-  const normalized = text.replace(/\r/g, '');
-  const decisionMatch = normalized.match(/SECURITY_DECISION:\s*(APPROVED|REJECTED)/i);
-  const targetMatch = normalized.match(/PROJECT_STATUS:\s*(Quality Assurance|Developer)/i);
-  if (!decisionMatch || !targetMatch) return null;
-
-  return {
-    decision: decisionMatch[1].toUpperCase(),
-    targetStatus: targetMatch[1]
-  };
-}
-
 function findLatestDecision(issue, prs, analysts) {
-  const lowerLogins = analysts.map((login) => login.toLowerCase());
   const entries = [];
 
   for (const comment of issue.comments?.nodes || []) {
-    const login = comment.author?.login?.toLowerCase();
-    if (!lowerLogins.includes(login)) continue;
+    const login = comment.author?.login?.toLowerCase() || '';
+    if (!isTrustedDecisionAuthor(login, analysts)) continue;
     const structured = extractStructuredDecision(comment.body);
     if (!structured) continue;
     entries.push({
@@ -355,19 +400,21 @@ function findLatestDecision(issue, prs, analysts) {
 
   for (const pr of prs) {
     for (const review of pr.reviews?.nodes || []) {
-      const login = review.author?.login?.toLowerCase();
-      if (!lowerLogins.includes(login)) continue;
+      const login = review.author?.login?.toLowerCase() || '';
+      if (!isTrustedDecisionAuthor(login, analysts)) continue;
       const structured = extractStructuredDecision(review.body);
       if (!structured) continue;
       entries.push({
         source: `review on ${pr.repository.nameWithOwner}#${pr.number} by ${review.author.login}`,
-        createdAt: null,
+        submittedAt: review.submittedAt,
         ...structured
       });
     }
   }
 
-  return entries.at(-1) || null;
+  return entries
+    .sort((left, right) => decisionTimestamp(left) - decisionTimestamp(right))
+    .at(-1) || null;
 }
 
 function buildDecision(issue, prs, analysts) {
@@ -396,8 +443,8 @@ function buildDecision(issue, prs, analysts) {
 
   const latestDecision = findLatestDecision(issue, prs, analysts);
   if (!latestDecision) {
-    reasons.push('Nenhuma decisão estruturada do analista de segurança foi encontrada.');
-    reasons.push('Use SECURITY_DECISION: APPROVED|REJECTED com PROJECT_STATUS: Quality Assurance|Developer em comentário ou review.');
+    reasons.push('Nenhuma decisão de segurança reconhecível foi encontrada.');
+    reasons.push('Aceita comentários estruturados ou texto explícito de aprovação/reprovação de segurança; na ausência deles, o Copilot deve ser acionado.');
     return {
       projectTarget: SOURCE_STATUS,
       prReviewAction: null,
@@ -407,20 +454,20 @@ function buildDecision(issue, prs, analysts) {
   }
 
   if (latestDecision.decision === 'REJECTED') {
-    reasons.push(`Decisão estruturada encontrada em ${latestDecision.source}.`);
+    reasons.push(`Decisão de segurança encontrada em ${latestDecision.source}.`);
     reasons.push('A análise de segurança registrou reprovação explícita.');
     return {
-      projectTarget: DECISION_DEVELOPER,
+      projectTarget: latestDecision.targetStatus || DECISION_DEVELOPER,
       prReviewAction: 'REQUEST_CHANGES',
       status: 'rejected',
       reasons
     };
   }
 
-  reasons.push(`Decisão estruturada encontrada em ${latestDecision.source}.`);
+  reasons.push(`Decisão de segurança encontrada em ${latestDecision.source}.`);
   reasons.push('A análise de segurança registrou aprovação explícita.');
   return {
-    projectTarget: DECISION_QA,
+    projectTarget: latestDecision.targetStatus || DECISION_QA,
     prReviewAction: 'APPROVE',
     status: 'approved',
     reasons
@@ -511,7 +558,8 @@ async function main() {
   const org = env('SECURITY_PROJECT_ORG', 'ControleOnline');
   const projectNumber = Number(env('SECURITY_PROJECT_NUMBER', '1'));
   const dryRun = env('SECURITY_DRY_RUN', 'true').toLowerCase() !== 'false';
-  const analysts = parseCsv(env('SECURITY_ANALYST_LOGINS')).map((login) => login.toLowerCase());
+  const analysts = new Set(parseCsv(env('SECURITY_ANALYST_LOGINS')).map((login) => login.toLowerCase()));
+  analysts.add(COPILOT_LOGIN);
   const useCopilot = env('SECURITY_USE_COPILOT', 'false').toLowerCase() === 'true';
   const copilotBaseRef = env('SECURITY_COPILOT_BASE_REF', 'master');
   const copilotModel = env('SECURITY_COPILOT_MODEL');
@@ -549,15 +597,15 @@ async function main() {
             copilotModel
           );
           copilotTriggered = true;
-          decision.reasons.push('Copilot cloud agent foi acionado para aprofundar a investigacao antes da decisao final.');
+          decision.reasons.push('Copilot cloud agent foi acionado para aprofundar a investigação antes da decisão final.');
         } catch (error) {
           copilotTriggerError = error.message || String(error);
-          decision.reasons.push('Nao foi possivel acionar o Copilot cloud agent nesta rodada.');
+          decision.reasons.push('Não foi possível acionar o Copilot cloud agent nesta rodada.');
         }
       } else if (isCopilotAlreadyAssigned(issue)) {
-        decision.reasons.push('Copilot cloud agent ja estava atribuido a esta issue.');
+        decision.reasons.push('Copilot cloud agent já estava atribuído a esta issue.');
       } else {
-        decision.reasons.push('Copilot cloud agent nao apareceu em suggestedActors para este repositorio.');
+        decision.reasons.push('Copilot cloud agent não apareceu em suggestedActors para este repositório.');
       }
     }
     const issueComment = buildIssueComment(issueRef, decision);

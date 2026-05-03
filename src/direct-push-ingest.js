@@ -12,8 +12,8 @@ const CONFIG = {
 };
 
 function token() {
-  const value = (process.env.TOKEN_PROJECTS || '').trim();
-  if (!value) throw new Error('TOKEN_PROJECTS is required');
+  const value = (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '').trim();
+  if (!value) throw new Error('GITHUB_TOKEN or GH_TOKEN is required');
   return value;
 }
 

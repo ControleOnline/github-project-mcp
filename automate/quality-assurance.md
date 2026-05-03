@@ -8,34 +8,34 @@ Centralizar a logica operacional de Quality Assurance para que agentes, automaco
 
 Esta logica cobre:
 
-- identificacao de tarefa elegivel em `Quality Assurance`
+- identificacao de tarefa elegivel para o agent `Quality Assurance`
 - rastreio entre issue, PR, commits, checks e arquivos alterados
 - validacao de conformidade com o `AGENTS.md` aplicavel
-- decisao entre `Developer`, `Security` e `Staging`
+- decisao entre `Developer`, `Security` e `DevOps`
 - aprovacao ou reprovação de PR
-- movimentacao do item no GitHub ProjectV2
-- merges obrigatorios no branch `staging` quando a task estiver aprovada
+- repasse da task para o proximo agent responsavel
+- preparacao da task para promocao tecnica em `DevOps`
 
 ## Fontes de verdade
 
 Use sempre, nesta ordem:
 
-1. campo real `Status` do item no GitHub ProjectV2
+1. associacao real do agent responsavel da task
 2. issue principal ligada a entrega
 3. PRs vinculados a issue
 4. commits, checks e arquivos alterados
 5. `AGENTS.md` mais especifico do escopo alterado
 
-Nao use texto solto em comentarios, descricao de PR ou busca aproximada como substituto do `Status` real do ProjectV2.
+Nao use texto solto em comentarios, descricao de PR ou busca aproximada como substituto da associacao real do agent responsavel.
 
 ## Regra de entrada
 
 Uma revisao de QA so pode comecar quando:
 
-- a issue estiver vinculada a um item do ProjectV2
-- o campo real `Status` do item estiver em `Quality Assurance`
+- a issue estiver vinculada ao fluxo operacional
+- o agent responsavel atual estiver em `Quality Assurance`
 
-Se o campo `Status` nao puder ser lido com seguranca, a automacao deve registrar bloqueio operacional e encerrar a rodada sem selecionar tarefa por aproximacao.
+Se a associacao oficial do agent responsavel nao puder ser lida com seguranca, a automacao deve registrar bloqueio operacional e encerrar a rodada sem selecionar tarefa por aproximacao.
 
 ## Regra de rastreio entre issue e PR
 
@@ -79,7 +79,7 @@ Ao reprovar:
 
 - solicitar changes no PR quando houver PR revisavel
 - comentar de forma objetiva na issue e no PR, quando aplicavel
-- mover o item do ProjectV2 para `Developer`
+- repassar a task para `Developer`
 
 ### Mover para `Security`
 
@@ -91,41 +91,29 @@ Use `Security` apenas quando:
 Ao encaminhar:
 
 - comentar objetivamente que a validacao de seguranca e obrigatoria
-- mover o item do ProjectV2 para `Security`
+- repassar a task para `Security`
 
-### Mover para `Staging`
+### Mover para `DevOps`
 
-Use `Staging` apenas quando:
+Use `DevOps` apenas quando:
 
 - a issue estiver atendida
 - a conformidade com `AGENTS.md` estiver validada
 - os testes e checks relevantes estiverem aceitaveis
 - a seguranca estiver concluida quando obrigatoria
-- houver trilha segura para merge em `staging`
+- houver trilha segura para promocao tecnica em `staging`
 
 Ao aprovar:
 
 - aprovar o PR correspondente
 - comentar a aprovacao com rastreabilidade
-- mover o item do ProjectV2 para `Staging`
-- executar os merges obrigatorios em `staging`
-
-## Regra obrigatoria de merge em `staging`
-
-Quando a task for aprovada:
-
-- garantir merge no branch `staging` do modulo dono da alteracao
-- garantir merge no branch `staging` do projeto principal quando a entrega depender dele
-- se `staging` nao existir em repositorio obrigatorio, criar a partir de `master`
-- registrar quais merges foram feitos e quais ficaram bloqueados
-
-Se a aprovacao funcional existir, mas o merge obrigatorio em `staging` nao puder ser concluido, trate como bloqueio operacional e nao finalize a promocao como concluida.
+- repassar a task para `DevOps`
 
 ## Regra de review de PR
 
 Quando houver PR ligado a task:
 
-- aprovar o PR apenas quando a decisao final for `Staging`
+- aprovar o PR apenas quando a decisao final for `DevOps`
 - solicitar changes quando a decisao final for `Developer`
 - nao deixar PR sem decisao quando a revisao de QA ja tiver sido concluida
 
@@ -137,17 +125,17 @@ Comentarios de QA devem sempre informar:
 - o impacto objetivo
 - o que falta para seguir
 - a decisao tomada
-- a coluna de destino no ProjectV2
+- o proximo agent responsavel da task
 
 ## Regras de automacao
 
 Uma automacao que implemente este fluxo deve:
 
-- preferir GraphQL para ler e atualizar ProjectV2
+- preferir GraphQL para ler e atualizar a associacao oficial do agent responsavel
 - usar REST ou app equivalente apenas como fallback operacional
 - falhar de forma conservadora quando nao houver evidencia suficiente
 - nunca promover tarefa por aproximacao textual
-- nunca encerrar a rodada mantendo item em `Quality Assurance`
+- nunca encerrar a rodada mantendo a task sem decisao de roteamento
 
 ## Estrutura sugerida
 
@@ -156,15 +144,15 @@ Use este arquivo como politica central.
 Sugestao de implementacao complementar:
 
 - `automate/quality-assurance.md`: politica e regras
-- `automate/project-status.md`: mapeamento de colunas e transicoes
+- `automate/project-status.md`: roteamento de agents e transicoes
 - `automate/pull-request-review.md`: criterios de approve ou request changes
-- `automate/staging-merge.md`: regras de merge e composicao cross-repo
-- `automate/scripts/qa-project-review.mjs`: leitura oficial de cards em `Quality Assurance`
+- `automate/staging-merge.md`: regras de merge e composicao cross-repo para `DevOps`
+- `automate/scripts/qa-project-review.mjs`: leitura oficial de tarefas associadas a `Quality Assurance`
 - `automate/workflows/qa-project-review.yml`: workflow base para GitHub Actions
 
 ## Token padrao da automacao
 
-A automacao deve usar `TOKEN_PROJECTS` como credencial principal para GraphQL, reviews, comentarios e mudanca de status no ProjectV2.
+A automacao deve usar `TOKEN_PROJECTS` como credencial principal para GraphQL, reviews, comentarios e repasse do agent responsavel.
 
 ## Branches alvo desta rodada
 

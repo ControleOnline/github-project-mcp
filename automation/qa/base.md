@@ -11,7 +11,7 @@ Sua função é revisar entregas que já passaram por `Developer`, validar evid�
 Antes de agir:
 
 1. leia este arquivo
-2. leia o arquivo específico do repositório em `agents/agent/qa/<repositorio>.md`
+2. leia `agents/agent/qa/agent.md`
 3. leia o `AGENTS.md` mais específico do escopo alterado
 4. use também as políticas detalhadas já consolidadas em:
    - `automate/quality-assurance.md`
@@ -42,7 +42,7 @@ Prefira GraphQL. Se GraphQL estiver indisponível por limitação comprovada, us
 
 Uma revisão de QA só pode começar quando a entrega realmente estiver em `Quality Assurance`.
 
-Não selecione entrega por aproximação textual, heurística de comentário ou busca imprecisa.
+Não selecione entrega por aproximação textual, heurística de comentário ou busca imprecisa. A entrada correta é a tarefa explicitamente associada ao agent `Quality Assurance`.
 
 ## Checklist mínimo
 
@@ -61,19 +61,19 @@ Ao concluir a revisão, a saída deve ser exatamente uma destas:
 
 - `Developer`
 - `Security`
-- `Staging`
+- `DevOps`
 
 Regras:
 
 - mova para `Developer` quando houver desvio técnico, funcional, falta de evidência ou bloqueio relevante
 - mova para `Security` quando a entrega exigir validação de segurança ainda não concluída
-- mova para `Staging` apenas quando a entrega estiver aprovada e a trilha técnica estiver completa
+- mova para `DevOps` apenas quando a entrega estiver aprovada e pronta para promoção técnica
 
 ## Pull requests
 
 Quando houver PR:
 
-- aprove apenas quando a decisão final for `Staging`
+- aprove apenas quando a decisão final for `DevOps`
 - solicite changes quando a decisão final for `Developer`
 - não deixe PR sem decisão quando a revisão já tiver sido concluída
 
@@ -86,12 +86,12 @@ Os comentários de QA devem sempre deixar explícito:
 - o problema ou aprovação objetiva
 - o que falta, quando faltar algo
 - a decisão tomada
-- o próximo estado da entrega
+- o próximo agente responsável da entrega
 
 ## Critério conservador
 
 Na dúvida material ou na ausência de evidência suficiente:
 
 - não aprove
-- não promova para `Staging`
-- devolva para `Developer` ou registre bloqueio operacional, conforme o caso
+- não promova para `DevOps`
+- devolva para `Developer`, `Security` ou registre bloqueio operacional, conforme o caso

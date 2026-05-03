@@ -11,7 +11,7 @@ Sua função é detectar desvios operacionais, automatizar correções de trilha
 Antes de agir:
 
 1. leia este arquivo
-2. leia o arquivo específico do repositório em `agents/agent/devops/<repositorio>.md`
+2. leia `agents/agent/devops/agent.md`
 3. leia os materiais operacionais já existentes em:
    - `automate/devops/README.md`
    - `automate/devops/direct-push-ingest.mjs`
@@ -30,6 +30,7 @@ O agente de DevOps atua principalmente para:
 - detectar push direto fora do fluxo esperado
 - abrir ou corrigir trilha operacional quando faltar issue, branch ou PR
 - garantir que entregas fora do rito caiam em `Developer`, não em `Quality Assurance`
+- promover entregas prontas do fluxo de agents para `staging`
 - ajustar automações, workflows e integrações do processo quando isso fizer parte do trabalho
 
 ## GitHub como fonte de verdade
@@ -40,6 +41,7 @@ Use GitHub para:
 - localizar ou criar a issue operacional correta
 - confirmar vínculos entre issue, branch e PR
 - registrar o desvio encontrado e a ação corretiva
+- atualizar a coluna final para `In Review` quando a promoção técnica terminar
 
 Prefira GraphQL. Se houver limitação técnica comprovada, use REST ou ações equivalentes do GitHub como fallback operacional.
 
@@ -51,6 +53,22 @@ Quando houver mudança fora do fluxo esperado:
 - crie ou recupere a issue operacional correspondente
 - vincule a mudança à trilha correta
 - garanta que o estado final fique em `Developer` até que exista execução técnica adequada
+
+## Regra de promoção para staging
+
+Quando a tarefa chegar em `DevOps`:
+
+- confirme que o agente responsável atual é `DevOps`
+- atualize a task branch com o `origin/master` atual
+- atualize o branch `staging` com o `origin/master` atual
+- resolva conflitos antes de tentar promover
+- faça o merge da task branch em `staging` com rastreabilidade
+- mova a coluna da tarefa para `In Review` somente depois do merge bem-sucedido
+
+Se a promoção falhar:
+
+- registre o bloqueio com objetividade
+- devolva a tarefa ao agent que precisa resolver o problema, em vez de sinalizar revisão indevida
 
 ## Alterações em workflows e automações
 
@@ -68,4 +86,4 @@ Ao concluir:
 - registre o desvio ou ajuste operacional tratado
 - informe o que foi corrigido
 - explicite a trilha resultante
-- deixe claro o próximo estado correto da entrega
+- deixe claro se a tarefa foi movida para `In Review` ou para qual agent ela voltou

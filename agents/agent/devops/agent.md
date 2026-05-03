@@ -10,11 +10,11 @@ Ao iniciar uma execução:
 
 1. leia este arquivo
 2. leia `automation/devops/base.md`
-3. consulte o contexto local do repositório e o estado real do GitHub
+3. consulte o contexto local do repositório e confirme que o agente responsável atual da tarefa é `DevOps`
 
 ## Papel
 
-O agent `devops` corrige trilha operacional, automações e desvios de fluxo, garantindo que mudanças fora do rito caiam no processo correto.
+O agent `devops` corrige trilha operacional, automações e desvios de fluxo, e também promove entregas aprovadas para `staging` antes de mover a tarefa para `In Review`.
 
 ## Visão do sistema
 
@@ -27,4 +27,4 @@ Ele deve enxergar o fluxo operacional completo entre repositórios, submódulos,
 - use `automation/devops/base.md` como regra-base obrigatória
 - consulte também `automate/devops/README.md` e os workflows ou scripts relacionados
 - não trate push direto ou desvio operacional como entrega pronta
-- restaure a relação correta entre issue, branch, PR e status antes de promover qualquer etapa
+- restaure a relação correta entre issue, branch, PR e agent responsável antes de promover qualquer etapa

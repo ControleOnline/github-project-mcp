@@ -2,14 +2,14 @@
 
 ## Objetivo
 
-Centralizar a lógica operacional do analista de segurança para que agentes, automações e workflows do GitHub apliquem a mesma decisão ao revisar tasks da coluna `Security` do ecossistema `ControleOnline`.
+Centralizar a lógica operacional do analista de segurança para que agents, automações e workflows do GitHub apliquem a mesma decisão ao revisar tasks associadas ao agent `Security` do ecossistema `ControleOnline`.
 
 ## Resultado final obrigatório
 
 Toda revisão de segurança deve terminar em exatamente um destes resultados:
 
-- mover para `Quality Assurance` quando a task estiver aprovada
-- mover para `Developer` quando a task estiver reprovada
+- repassar para `Quality Assurance` quando a task estiver aprovada
+- repassar para `Developer` quando a task estiver reprovada
 
 Não encerrar a análise de outra forma. Só deixe de mover quando houver bloqueio real de ferramenta, acesso ou indisponibilidade operacional do GitHub. Mesmo nesse caso, a decisão final pretendida deve ficar explícita.
 
@@ -45,22 +45,21 @@ Toda revisão deve cobrir, no mínimo:
 
 Use sempre, nesta ordem:
 
-1. campo real `Status` do item no GitHub ProjectV2 por GraphQL, quando disponível
+1. associação real do agent responsável da task por GraphQL, quando disponível
 2. issue principal ligada à entrega
 3. PRs vinculados à issue
 4. commits, checks, arquivos alterados e diff
 5. `AGENTS.md` mais específico do escopo alterado
 6. `agents.md` do módulo quando houver regra de negócio ou autorização registrada
 
-Não use comentários soltos, título, busca textual ou heurística sobre cards como substituto do campo real `Status`.
+Não use comentários soltos, título, busca textual ou heurística sobre cards como substituto da associação real do agent responsável.
 
 ## Regra de entrada
 
 Uma revisão de segurança só pode começar quando:
 
-- a issue estiver vinculada a um item do ProjectV2
-- o item pertencer ao fluxo de segurança
-- o campo `Status` estiver em `Security` ou em estado compatível com a revisão de segurança em andamento
+- a issue estiver vinculada ao fluxo operacional
+- o agent responsável atual estiver em `Security`
 
 Se GraphQL estiver indisponível por limitação de infraestrutura, continue a coleta com as ações suportadas do GitHub e registre a limitação no comentário final.
 
@@ -137,7 +136,7 @@ Ao reprovar:
 
 - deixar comentário final objetivo com escopo, evidências e motivo
 - solicitar `REQUEST_CHANGES` no PR quando houver PR revisável
-- mover o item do ProjectV2 para `Developer`
+- repassar a task para `Developer`
 
 ### Mover para `Quality Assurance`
 
@@ -154,7 +153,7 @@ Ao aprovar:
 
 - comentar com rastreabilidade do escopo revisado
 - aprovar o PR quando houver PR revisável
-- mover o item do ProjectV2 para `Quality Assurance`
+- repassar a task para `Quality Assurance`
 
 ## Regra de comentário final
 
@@ -166,18 +165,18 @@ O comentário final da revisão deve informar:
 - situação do `securityFilter`
 - regras de negócio confirmadas ou definidas
 - se houve atualização em `agents.md`
-- decisão final e o motivo
+- próximo agent responsável e o motivo
 
 ## Regras de automação
 
 Uma automação que implemente este fluxo deve:
 
-- preferir GraphQL para ler e atualizar ProjectV2
+- preferir GraphQL para ler e atualizar a associação oficial do agent responsável
 - usar REST ou app equivalente apenas como fallback operacional
 - poder acionar o Copilot cloud agent como apoio investigativo quando a rodada exigir contexto adicional
 - falhar de forma conservadora quando não houver evidência suficiente
 - nunca aprovar por aproximação textual
-- nunca encerrar a rodada mantendo item em `Security`, exceto na etapa transitória de apoio do Copilot cloud agent explicitamente configurada
+- nunca encerrar a rodada mantendo a task sem decisão de roteamento, exceto na etapa transitória de apoio do Copilot cloud agent explicitamente configurada
 
 ## Apoio com Copilot cloud agent
 
@@ -194,7 +193,7 @@ Essa delegação não substitui a decisão final do analista de segurança. A ap
 ## Estrutura sugerida
 
 - `automate/security-review.md`: política e regras
-- `automate/security-project-status.md`: mapeamento de colunas e transições
+- `automate/security-project-status.md`: roteamento de agents e transições
 - `automate/security-pull-request-review.md`: critérios de review
 - `automate/scripts/security-project-review.mjs`: coleta de evidência e execução do fluxo
 - `automate/workflows/security-project-review.yml`: workflow base no GitHub Actions

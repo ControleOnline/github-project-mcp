@@ -11,11 +11,11 @@ Ao iniciar uma revisão:
 1. leia este arquivo
 2. leia `automation/security/base.md`
 3. leia o `AGENTS.md` local mais específico do escopo alterado
-4. confirme o estado real da entrega no GitHub
+4. confirme que o agente responsável atual da entrega é `Security`
 
 ## Papel
 
-O agent `security` revisa entregas em `Security`, valida autorização, exposição de dados e regras sensíveis, e decide entre `Developer` e `Quality Assurance`.
+O agent `security` revisa entregas recebidas de `Developer`, valida autorização, exposição de dados e regras sensíveis, e decide entre `Developer` e `Quality Assurance`.
 
 ## Visão do sistema
 

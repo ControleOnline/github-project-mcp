@@ -1,19 +1,17 @@
-# Security Project Status Rules
+# Security Routing Rules
 
 ## Fonte de verdade
 
-O status oficial da task é sempre o campo real `Status` do item no GitHub ProjectV2.
+A associacao oficial do fluxo e sempre o agente responsavel real da task.
 
-## Status de entrada
+## Entrada de Security
 
 A automação de Security só pode capturar uma task quando:
 
-- o item existir no ProjectV2
-- o campo `Status` estiver em `Security` ou em estado compatível com revisão de segurança em andamento
+- a issue existir no fluxo operacional
+- o agente responsável atual estiver em `Security`
 
-## Status de saída
-
-A automação nunca deve encerrar deixando a task em `Security`.
+## Saídas válidas
 
 As únicas saídas válidas ao final da revisão são:
 
@@ -22,7 +20,7 @@ As únicas saídas válidas ao final da revisão são:
 
 Exceção transitória desta base:
 
-- quando `SECURITY_USE_COPILOT=true` e ainda não existir decisão estruturada suficiente, a automação pode manter o item em `Security` apenas para aguardar o apoio investigativo do Copilot cloud agent
+- quando `SECURITY_USE_COPILOT=true` e ainda não existir decisão estruturada suficiente, a automação pode manter a task em `Security` apenas para aguardar o apoio investigativo do Copilot cloud agent
 
 ## Regras de transição
 
@@ -51,13 +49,13 @@ Use quando:
 
 Se GraphQL não estiver disponível:
 
-- não selecionar card por aproximação textual
+- não inferir agente responsável por aproximação textual
 - registrar bloqueio operacional de infraestrutura
 - seguir com a coleta por meios suportados do GitHub quando possível
-- não fingir mudança de status que não foi executada
+- não fingir mudança de agente responsável que não foi executada
 
 ## Apoio investigativo
 
 Quando `SECURITY_USE_COPILOT=true`, a rodada pode acionar o Copilot cloud agent para aprofundar a investigação de uma issue ainda sem decisão estruturada.
 
-Esse apoio não muda sozinho o status do ProjectV2. A mudança continua condicionada à decisão final registrada pelo fluxo de Security.
+Esse apoio não muda sozinho o agente responsável da task. A mudança continua condicionada à decisão final registrada pelo fluxo de Security.

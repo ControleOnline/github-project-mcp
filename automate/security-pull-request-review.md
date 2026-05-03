@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Estas regras definem como o analista de segurança deve agir sobre PRs ligados a uma issue em revisão na coluna `Security`.
+Estas regras definem como o analista de segurança deve agir sobre PRs ligados a uma issue em revisão sob responsabilidade do agent `Security`.
 
 ## Regras de aprovação
 
@@ -37,12 +37,12 @@ Ao concluir a revisão, o agente deve deixar comentário rastreável em issue e 
 - entidades e services avaliados
 - situação do `securityFilter`
 - decisão final
-- coluna de destino no ProjectV2
+- próximo agent responsável da task
 
 ## Critério conservador
 
 Se houver dúvida material ou falta de evidência:
 
 - não aprovar
-- não mover para `Quality Assurance`
+- não repassar para `Quality Assurance`
 - devolver para `Developer` ou registrar bloqueio operacional real, conforme o caso

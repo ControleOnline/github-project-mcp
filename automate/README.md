@@ -4,8 +4,10 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 
 ## Agentes cobertos
 
-- `Quality Assurance`: valida entrega, checks, composição entre PRs e promoção para `Staging`
-- `Security`: valida autorização, `securityFilter`, exposição de dados e promoção para `Quality Assurance`
+- `Developer`: implementa e entrega para `Security`
+- `Security`: valida autorização, `securityFilter`, exposição de dados e entrega para `Quality Assurance`
+- `Quality Assurance`: valida entrega, checks, composição entre PRs e entrega para `DevOps`
+- `DevOps`: sincroniza `master`, promove para `staging` e move a coluna para `In Review`
 
 ## Arquivos
 
@@ -25,18 +27,19 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 
 Permitir que o GitHub execute os fluxos de revisão de forma padronizada:
 
-1. localizar tasks na coluna correta
+1. localizar tasks associadas ao agente responsável correto
 2. encontrar issue, PRs, comentários, reviews, checks e arquivos relacionados
 3. aplicar a política do agente dono da etapa
 4. registrar evidência rastreável
 5. revisar PR quando aplicável
-6. mover o item no ProjectV2 para a próxima coluna obrigatória
+6. repassar a tarefa para o próximo agente responsável correto
+7. usar coluna apenas no passo final de `DevOps` -> `In Review`
 
 ## Secrets esperados
 
 O padrão atual de credenciais é:
 
-- `TOKEN_PROJECTS`: token principal para GraphQL, reviews, comentários e mudança de status no ProjectV2
+- `TOKEN_PROJECTS`: token principal para GraphQL, reviews, comentários, atualização do agente responsável e mudança da coluna final quando aplicável
 
 No GitHub Actions, a injeção esperada é:
 
@@ -73,8 +76,9 @@ Esta base está apontada para:
 ## Observações
 
 - GraphQL continua sendo o caminho preferencial para leitura e escrita do ProjectV2.
-- O agente de QA decide entre `Developer`, `Security` e `Staging`.
+- O agente de QA decide entre `Developer`, `Security` e `DevOps`.
 - O agente de Security decide entre `Developer` e `Quality Assurance`.
+- O agente de DevOps é o único que deve mover a coluna para `In Review`.
 - O fluxo de Security precisa ser conservador: ausência de evidência não vale como aprovação.
 - O script de Security foi deixado como base executável conservadora, espera uma decisão estruturada do analista e pode delegar investigação ao Copilot cloud agent quando configurado.
 - Quando houver conflito entre script e política, siga os arquivos `.md` desta pasta.

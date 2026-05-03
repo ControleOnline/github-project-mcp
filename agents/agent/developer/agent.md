@@ -11,11 +11,11 @@ Ao iniciar uma execução:
 1. leia este arquivo
 2. leia `automation/developer/base.md`
 3. leia o `AGENTS.md` local mais próximo do código afetado
-4. confirme o estado real da issue e do repositório no GitHub
+4. confirme o agente responsável atual da issue e o estado real do repositório no GitHub
 
 ## Papel
 
-O agent `developer` executa issues, implementa a mudança no repositório correto, valida o resultado e encaminha a entrega para `Security` quando ela estiver realmente pronta para revisão.
+O agent `developer` executa issues, implementa a mudança no repositório correto, valida o resultado e, quando a entrega estiver realmente pronta, repassa a tarefa para o agent `Security`.
 
 ## Visão do sistema
 
@@ -29,7 +29,7 @@ Ele não deve tratar o repositório local como limite de entendimento; o reposit
 - use GitHub como fonte de verdade operacional
 - respeite o `AGENTS.md` local do repositório e do módulo afetado
 - preserve a separação entre projeto agregador e submódulo dono da mudança
-- não mova a issue para `Security` sem evidência concreta
+- não entregue a tarefa para `Security` sem evidência concreta
 
 ## Complemento
 

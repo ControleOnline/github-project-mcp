@@ -11,7 +11,7 @@ Sua função é revisar entregas em `Security`, validar autorização, controle 
 Antes de agir:
 
 1. leia este arquivo
-2. leia o arquivo específico do repositório em `agents/agent/security/<repositorio>.md`
+2. leia `agents/agent/security/agent.md`
 3. leia o `AGENTS.md` mais específico do escopo alterado
 4. use também as políticas detalhadas já consolidadas em:
    - `automate/security-review.md`
@@ -38,9 +38,9 @@ Prefira GraphQL. Se GraphQL falhar por limitação técnica comprovada, use REST
 
 ## Regra de entrada
 
-A revisão só pode começar quando a entrega realmente estiver em `Security` ou em estado comprovadamente compatível com revisão de segurança em andamento.
+A revisão só pode começar quando a tarefa estiver explicitamente associada ao agent `Security`.
 
-Nunca substitua a leitura do estado real por heurística textual.
+Nunca substitua a leitura do estado real por heurística textual ou por coluna intermediária.
 
 ## Escopo mínimo da revisão
 
@@ -73,7 +73,7 @@ Use `Developer` quando houver:
 - regra crítica ausente ou ambígua
 - evidência insuficiente para sustentar aprovação
 
-Use `Quality Assurance` apenas quando houver evidência suficiente de que a entrega está protegida de forma coerente com o contexto do repositório.
+Use `Quality Assurance` apenas quando houver evidência suficiente de que a entrega está protegida de forma coerente com o contexto do repositório. Ao concluir, mude o agente responsável para `Quality Assurance`, não para uma coluna intermediária.
 
 ## Registro obrigatório
 
@@ -90,7 +90,7 @@ O comentário final deve informar:
 - principais riscos encontrados ou descartados
 - situação da proteção relevante
 - se houve atualização em `AGENTS.md`
-- decisão final e motivo
+- próximo agente responsável e motivo
 
 ## Critério conservador
 

@@ -1,47 +1,52 @@
 # github-project-mcp
 
-Repositório padrão de publicação para scripts, workflows e políticas de automação de QA do ecossistema `ControleOnline`.
+Repositório padrão de automação de QA do ecossistema ControleOnline.
 
-## Onde publicar
+## Execução automática
 
-Use este repositório como destino versionado padrão:
+Este projeto roda automaticamente via GitHub Actions.
 
-- `https://github.com/ControleOnline/github-project-mcp`
+Não há parâmetros manuais.
 
-Use o branch:
+O fluxo padrão:
 
-- `master`
+1. Lê o projeto:
+   - https://github.com/orgs/ControleOnline/projects/1
+2. Filtra:
+   - Status = Quality Assurance
+3. Seleciona:
+   - até 5 tarefas
+4. Executa QA automático
 
-## Variáveis esperadas
-
-O scaffold e as automações deste repositório devem preferir:
-
-- `TOKEN_PROJECTS`
-- `QA_PROJECT_ORG`
-- `QA_PROJECT_NUMBER`
-- `QA_TARGET_STATUS`
-
-## Arquivos principais
-
-- `package.json`
-- `src/index.js`
-- `automate/`
-
-## Exemplo de uso
+## Variáveis obrigatórias
 
 ```bash
-node src/index.js ControleOnline ControleOnline app-community 100 1 "Quality Assurance"
+TOKEN_PROJECTS
 ```
 
-Ou por variáveis de ambiente:
+Sem fallback. Execução falha se não existir.
+
+## Variáveis de configuração
 
 ```bash
-export TOKEN_PROJECTS=***
-export QA_PROJECT_ORG=ControleOnline
-export QA_PROJECT_NUMBER=1
-export QA_ISSUE_OWNER=ControleOnline
-export QA_ISSUE_REPO=app-community
-export QA_ISSUE_NUMBER=100
-export QA_TARGET_STATUS="Quality Assurance"
-node src/index.js
+QA_PROJECT_ORG=ControleOnline
+QA_PROJECT_NUMBER=1
+QA_TARGET_STATUS="Quality Assurance"
+QA_TASK_LIMIT=5
 ```
+
+## Execução local
+
+```bash
+TOKEN_PROJECTS=*** node src/index.js
+```
+
+Sem argumentos.
+
+## Publicação
+
+Este é o repositório oficial de automação:
+
+https://github.com/ControleOnline/github-project-mcp
+
+Todos os agentes devem publicar aqui.

@@ -19,7 +19,7 @@ function base64url(input) {
 }
 
 function privateKey() {
-  return requiredEnv('GITHUB_APP_PRIVATE_KEY').replace(/\\n/g, '\n');
+  return requiredEnv('APP_PRIVATE_KEY').replace(/\\n/g, '\n');
 }
 
 function appJwt() {
@@ -28,7 +28,7 @@ function appJwt() {
   const payload = {
     iat: now - 60,
     exp: now + 540,
-    iss: requiredEnv('GITHUB_APP_ID'),
+    iss: requiredEnv('APP_ID'),
   };
   const unsigned = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
   const signature = crypto.sign('RSA-SHA256', Buffer.from(unsigned), privateKey());
@@ -36,7 +36,7 @@ function appJwt() {
 }
 
 async function installationToken() {
-  const installationId = requiredEnv('GITHUB_APP_INSTALLATION_ID');
+  const installationId = requiredEnv('APP_INSTALLATION_ID');
   const response = await fetch(`${REST_API}/app/installations/${installationId}/access_tokens`, {
     method: 'POST',
     headers: {

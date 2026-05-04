@@ -292,7 +292,7 @@ async function main() {
   const workItems = sortByCreatedAt(listWorkItems(project, workStatus));
   const activeItems = workItems.filter((item) => {
     if (!hasAgentAssignee(item.content, agentLogins)) return false;
-    return true;
+    return !hasHumanAssignee(item.content, agentLogins);
   });
   const humanOwnedItems = workItems.filter((item) => hasHumanOnlyAssignee(item.content, agentLogins));
   const candidateItems = workItems.filter((item) => {

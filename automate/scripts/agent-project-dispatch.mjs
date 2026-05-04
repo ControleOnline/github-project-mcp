@@ -313,6 +313,7 @@ function isActiveForRole(item, role, knownAgentLogins) {
   if (!issue?.repository?.nameWithOwner) return false;
   if (issue.state !== 'OPEN') return false;
   if (!hasAgentAssignee(issue, knownAgentLogins)) return false;
+  if (hasHumanAssignee(issue, knownAgentLogins)) return false;
   return currentAgentLabel(issue) === ROLE_META[role].label;
 }
 

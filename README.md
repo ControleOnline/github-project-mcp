@@ -4,10 +4,11 @@ Base oficial de automação do ecossistema `ControleOnline` para agents que roda
 
 O fluxo oficial agora é orientado por agente responsável, e não por coluna intermediária:
 
+- `Developer` é a entrada padrão de task nova em `Work`
 - `Developer` implementa e entrega para `Security`
 - `Security` revisa e entrega para `Quality Assurance`, ou devolve para `Developer`
 - `Quality Assurance` revisa e entrega para `DevOps`, ou devolve para `Developer` ou `Security`
-- `DevOps` sincroniza `master`, promove para `staging` e move a coluna para `In Review`
+- `DevOps` resolve conflitos operacionais, sincroniza `master`, promove para `staging` e move a coluna para `In Review`
 
 ## Como o agente responsável é representado
 
@@ -33,6 +34,7 @@ As regras-base dos agents ficam em [`automation/`](./automation/) e a política 
 ## Estrutura
 
 - `automate/developer/README.md`: política operacional do runner de `Developer`
+- `automate/scripts/agent-flow-sync.mjs`: sincronizador central de labels iniciais, conflitos e limpeza final
 - `automate/scripts/agent-project-dispatch.mjs`: despachante genérico de agents por label/Work
 - `automate/quality-assurance.md`: política central do agente de QA
 - `automate/security-review.md`: política central do analista de segurança
@@ -42,12 +44,14 @@ As regras-base dos agents ficam em [`automation/`](./automation/) e a política 
 - `automate/security-pull-request-review.md`: regras de review para Security
 - `automate/staging-merge.md`: regras de promoção para `staging` via DevOps
 - `automate/scripts/developer-project-dispatch.mjs`: base executável do despacho de `Developer`
+- `src/agent-flow-sync-runner.js`: wrapper do sincronizador central do fluxo
 - `src/devops-runner.js`: wrapper do despachante de `DevOps`
 - `automate/scripts/qa-project-review.mjs`: base executável do fluxo de QA
 - `automate/scripts/security-project-review.mjs`: base executável do fluxo de Security
 - `automate/workflows/developer-project-dispatch.yml`: workflow de `Developer`
 - `automate/workflows/qa-project-review.yml`: workflow de QA
 - `automate/workflows/security-project-review.yml`: workflow de Security
+- `.github/workflows/agent-flow-sync.yml`: runner central de labels iniciais, conflitos e limpeza final
 
 ## Como os agentes rodam
 
@@ -56,13 +60,15 @@ Os agents são disparados por GitHub Actions e usam o GitHub como fonte de verda
 Fluxo esperado:
 
 1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não tenha responsável humano e não exista outra execução ativa do próprio `Developer`.
-2. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
-3. Confirmar qual é o agente responsável atual da tarefa.
-4. Aplicar a política correspondente em `automation/` e `automate/`.
-5. Registrar comentário rastreável.
-6. Revisar PR quando aplicável.
-7. Mudar o agente responsável para o próximo passo correto.
-8. Só usar coluna para o passo final de `DevOps` -> `In Review`.
+2. Task aberta em `Work` sem `agent:*` pertence inicialmente a `Developer`.
+3. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
+4. Confirmar qual é o agente responsável atual da tarefa.
+5. Aplicar a política correspondente em `automation/` e `automate/`.
+6. Registrar comentário rastreável.
+7. Revisar PR quando aplicável.
+8. Mudar o agente responsável para o próximo passo correto.
+9. Se houver PR com conflito de merge, a responsabilidade operacional passa para `DevOps`.
+10. Só usar coluna para o passo final de `DevOps` -> `In Review`.
 
 ## Credenciais e secrets
 
@@ -115,6 +121,18 @@ SECURITY_COPILOT_BASE_REF=master
 SECURITY_COPILOT_MODEL=
 ```
 
+### Flow Sync
+
+```bash
+FLOW_PROJECT_ORG=ControleOnline
+FLOW_PROJECT_NUMBER=1
+FLOW_DRY_RUN=false
+FLOW_WORK_STATUS=Work
+FLOW_IN_REVIEW_STATUS=In Review
+FLOW_KNOWN_AGENT_LOGINS=copilot-swe-agent,copilot
+FLOW_OUTPUT_DIR=./.flow-output
+```
+
 ## Execução local
 
 Execute os scripts Node em `automate/scripts/` com `GITHUB_TOKEN` ou `GH_TOKEN`, ou pelos runners que montam o token a partir do GitHub App.
@@ -137,7 +155,9 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - ProjectV2 deve ser lido por GraphQL sempre que possível.
 - Busca textual não substitui a associação real do agente responsável nem a coluna final real quando ela for usada.
 - o label `agent:*` é a associação oficial do agent responsável atual
+- task aberta em `Work` sem `agent:*` entra por padrão em `Developer`
 - `Developer` não deve capturar tasks em `Work` que estejam atribuídas a pessoas.
+- conflito de merge em PR aberto deve ir para `DevOps`
 - Cada agent só pode concluir a task repassando para um próximo agent válido, ou para `In Review` no caso do DevOps.
 - O fluxo de Security pode acionar o Copilot cloud agent para aprofundar a investigação antes da decisão final, quando configurado.
 - Quando a automação for mais limitada do que a política, a política em `automate/*.md` prevalece.

@@ -35,6 +35,8 @@ Use GitHub como sistema principal para:
 
 O agent responsável atual é o label exclusivo `agent:*`. O assignee `Copilot` indica apenas execução ativa.
 
+Task aberta em `Work` sem `agent:*` entra inicialmente por `Developer`.
+
 Prefira GraphQL sempre que ele estiver operacional. Se GraphQL falhar por limitação técnica comprovada, use REST e ações disponíveis do GitHub como fallback operacional. Não trate esse fallback, por si só, como falha fatal.
 
 ## Elegibilidade da issue
@@ -43,7 +45,7 @@ Antes de iniciar ou retomar uma execução:
 
 - confirme que a issue está `open`
 - confirme que a issue não está atribuída a outra pessoa
-- confirme que o agente responsável atual da entrega é `Developer`
+- confirme que o agente responsável atual da entrega é `Developer`, ou que a task ainda está em `Work` sem `agent:*`
 - confirme que não existe bloqueio explícito mais prioritário vindo de `Security`
 
 Nunca use heurística textual, busca aproximada, título, comentário ou histórico solto como substituto da associação explícita do agente responsável lida no GitHub.
@@ -118,9 +120,11 @@ Envie a issue para `Security` apenas quando:
 
 Não use `Security` como sinônimo de "quase pronto". Ao concluir, atualize o agente responsável da tarefa para `Security`, independentemente da coluna.
 
+Se houver PR aberto com conflito de merge, não tente concluir a etapa como se fosse pronta para `Security`. Nesse caso, o próximo agente responsável deve ser `DevOps`.
+
 Ao concluir sua etapa:
 
-- troque o label da issue para `agent:security`
+- troque o label da issue para `agent:security` ou `agent:devops`, conforme o estado real
 - remova o assignee `Copilot`
 - preserve assignees humanos
 

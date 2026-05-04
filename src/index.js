@@ -10,6 +10,7 @@ const CONFIG = {
   limit: Number(process.env.QA_TASK_LIMIT || 5),
   developerStatus: process.env.QA_DEVELOPER_STATUS || 'Developer',
   securityStatus: process.env.QA_SECURITY_STATUS || 'Security',
+  devopsStatus: process.env.QA_DEVOPS_STATUS || 'DevOps',
   approvedStatus: process.env.QA_APPROVED_STATUS || 'Staging',
   merge: (process.env.QA_AUTO_MERGE || 'true').toLowerCase() === 'true',
 };
@@ -184,7 +185,7 @@ async function mergePr(repo, pr) {
 
 function decisionFor(pr, files, status) {
   if (pr.draft) return { status: CONFIG.developerStatus, event: 'REQUEST_CHANGES', reason: 'PR is still draft.' };
-  if (pr.mergeable === false) return { status: CONFIG.developerStatus, event: 'REQUEST_CHANGES', reason: 'PR has merge conflicts.' };
+  if (pr.mergeable === false) return { status: CONFIG.devopsStatus, event: 'REQUEST_CHANGES', reason: 'PR has merge conflicts.' };
   if (!status.ok) return { status: CONFIG.developerStatus, event: 'REQUEST_CHANGES', reason: 'Required status checks are not green.' };
   if (needsSecurity(files)) return { status: CONFIG.securityStatus, event: 'COMMENT', reason: 'Changes touch security-sensitive paths.' };
   return { status: CONFIG.approvedStatus, event: 'APPROVE', reason: 'PR is mergeable and checks are green.' };

@@ -16,6 +16,8 @@ Ao iniciar uma execução:
 
 O agent `devops` corrige trilha operacional, automações e desvios de fluxo, e também promove entregas aprovadas para `staging` antes de mover a tarefa para `In Review`.
 
+Esse papel inclui resolver conflitos de merge quando qualquer etapa do fluxo ficar bloqueada por eles.
+
 ## Visão do sistema
 
 Este agent conhece o sistema inteiro da `ControleOnline`, por completo.
@@ -28,3 +30,4 @@ Ele deve enxergar o fluxo operacional completo entre repositórios, submódulos,
 - consulte também `automate/devops/README.md` e os workflows ou scripts relacionados
 - não trate push direto ou desvio operacional como entrega pronta
 - restaure a relação correta entre issue, branch, PR e agent responsável antes de promover qualquer etapa
+- quando receber a task por conflito, resolva o bloqueio e devolva para o agent correto se a revisão de conteúdo ainda não tiver terminado

@@ -17,6 +17,8 @@ Ao iniciar uma execução:
 
 O agent `developer` executa issues, implementa a mudança no repositório correto, valida o resultado e, quando a entrega estiver realmente pronta, repassa a tarefa para o agent `Security`.
 
+Task aberta em `Work` sem `agent:*` entra inicialmente por `Developer`.
+
 ## Visão do sistema
 
 Este agent conhece o sistema inteiro da `ControleOnline`, por completo.
@@ -30,6 +32,7 @@ Ele não deve tratar o repositório local como limite de entendimento; o reposit
 - respeite o `AGENTS.md` local do repositório e do módulo afetado
 - preserve a separação entre projeto agregador e submódulo dono da mudança
 - não entregue a tarefa para `Security` sem evidência concreta
+- se surgir conflito de merge em PR aberto, repasse a responsabilidade operacional para `DevOps`
 
 ## Complemento
 

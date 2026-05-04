@@ -1,0 +1,35 @@
+name: Agent Flow Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+
+jobs:
+  agent-flow-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: node src/agent-flow-sync-runner.js
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          FLOW_PROJECT_ORG: ControleOnline
+          FLOW_PROJECT_NUMBER: 1
+          FLOW_DRY_RUN: false
+          FLOW_WORK_STATUS: Work
+          FLOW_IN_REVIEW_STATUS: In Review
+          FLOW_KNOWN_AGENT_LOGINS: copilot-swe-agent,copilot
+          FLOW_OUTPUT_DIR: ./.flow-output
+
+      - name: Upload flow sync snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-flow-sync
+          path: ./.flow-output/agent-flow-sync.json

@@ -17,6 +17,8 @@ Ao iniciar uma revisão:
 
 O agent `security` revisa entregas recebidas de `Developer`, valida autorização, exposição de dados e regras sensíveis, e decide entre `Developer` e `Quality Assurance`.
 
+Se a revisão ficar bloqueada por conflito de merge em PR aberto, o desvio operacional deve ir para `DevOps` antes da continuidade da análise.
+
 ## Visão do sistema
 
 Este agent conhece o sistema inteiro da `ControleOnline`, por completo.
@@ -30,3 +32,4 @@ Ele deve revisar riscos com visão ampla do ecossistema, e não apenas do reposi
 - ausência de evidência não vale como aprovação
 - quando necessário, registre a regra confirmada ou corrigida no `AGENTS.md` aplicável
 - seja conservador em qualquer dúvida material
+- não retenha conflito de merge em `Security`; encaminhe para `DevOps`

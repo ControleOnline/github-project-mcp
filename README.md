@@ -78,7 +78,8 @@ Este repositório não deve documentar nem depender de caminhos antigos de secre
 
 O padrão atual é:
 
-- no GitHub Actions, a credencial principal entra por `APP_ID`, `APP_INSTALLATION_ID` e `APP_PRIVATE_KEY`
+- no GitHub Actions, os runners devem preferir `GH_TOKEN` quando precisarem atribuir o Copilot agent entre repositórios do ecossistema
+- `APP_ID`, `APP_INSTALLATION_ID` e `APP_PRIVATE_KEY` continuam como fallback para leitura/escrita operacional quando `GH_TOKEN` não estiver disponível
 - quando o ambiente já fornecer token válido, os scripts aceitam `GITHUB_TOKEN` ou `GH_TOKEN`
 - arquivos locais de credenciais não fazem parte do contrato do projeto
 
@@ -148,7 +149,7 @@ WORKFLOW_RETRY_MAX_DELAY_MS=20000
 
 ## Execução local
 
-Execute os scripts Node em `automate/scripts/` com `GITHUB_TOKEN` ou `GH_TOKEN`, ou pelos runners que montam o token a partir do GitHub App.
+Execute os scripts Node em `automate/scripts/` com `GITHUB_TOKEN` ou `GH_TOKEN`. Nos runners do GitHub Actions, `GH_TOKEN` deve ser preferido para atribuição do Copilot agent e o GitHub App fica como fallback.
 
 ## Copilot cloud agent no Security
 

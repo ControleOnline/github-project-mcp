@@ -48,11 +48,13 @@ Permitir que o GitHub execute os fluxos de revisão de forma padronizada:
 
 O padrão atual de credenciais é:
 
-- `APP_ID`, `APP_INSTALLATION_ID` e `APP_PRIVATE_KEY`: padrão para montar o token do GitHub App dentro dos runners
+- `GH_TOKEN`: token preferencial dos runners quando a automação precisar atribuir o Copilot agent em issues de múltiplos repositórios
+- `APP_ID`, `APP_INSTALLATION_ID` e `APP_PRIVATE_KEY`: fallback para montar token do GitHub App dentro dos runners
 - `GITHUB_TOKEN` ou `GH_TOKEN`: entrada operacional quando o token já vier pronto do ambiente
 
 No GitHub Actions, a injeção esperada é:
 
+- `${{ secrets.GH_TOKEN }}`
 - `${{ secrets.APP_ID }}`
 - `${{ secrets.APP_INSTALLATION_ID }}`
 - `${{ secrets.APP_PRIVATE_KEY }}`

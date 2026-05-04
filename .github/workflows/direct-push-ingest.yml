@@ -21,6 +21,7 @@ jobs:
       - name: Ingest direct push
         run: node src/direct-push-ingest-runner.js
         env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           APP_ID: ${{ secrets.APP_ID }}
           APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}

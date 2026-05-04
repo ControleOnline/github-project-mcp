@@ -14,6 +14,7 @@ Ele:
 - ignora tasks que ja estejam com algum agent em execucao na propria coluna `Work`
 - atribui o `copilot-swe-agent` com instrucoes de `Developer` para a proxima task elegivel
 - registra comentario objetivo quando a atribuicao for executada
+- nos runners do GitHub Actions, deve preferir `GH_TOKEN`; o GitHub App fica apenas como fallback quando esse token nao estiver disponivel
 
 ## Arquivos principais
 

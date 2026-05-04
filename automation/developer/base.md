@@ -33,6 +33,8 @@ Use GitHub como sistema principal para:
 - registrar progresso e conclusão
 - mudar o agente responsável para a etapa seguinte
 
+O agent responsável atual é o label exclusivo `agent:*`. O assignee `Copilot` indica apenas execução ativa.
+
 Prefira GraphQL sempre que ele estiver operacional. Se GraphQL falhar por limitação técnica comprovada, use REST e ações disponíveis do GitHub como fallback operacional. Não trate esse fallback, por si só, como falha fatal.
 
 ## Elegibilidade da issue
@@ -115,6 +117,12 @@ Envie a issue para `Security` apenas quando:
 - a task já pode ser entregue para análise de segurança
 
 Não use `Security` como sinônimo de "quase pronto". Ao concluir, atualize o agente responsável da tarefa para `Security`, independentemente da coluna.
+
+Ao concluir sua etapa:
+
+- troque o label da issue para `agent:security`
+- remova o assignee `Copilot`
+- preserve assignees humanos
 
 ## Comentários finais
 

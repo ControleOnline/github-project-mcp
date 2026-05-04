@@ -15,12 +15,24 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: node src/index.js
+      - run: node src/qa-runner.js
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-          QA_PROJECT_ORG: ControleOnline
-          QA_PROJECT_NUMBER: 1
-          QA_TARGET_STATUS: Quality Assurance
-          QA_TASK_LIMIT: 5
+          AGENT_DISPATCH_ROLE: qa
+          AGENT_PROJECT_ORG: ControleOnline
+          AGENT_PROJECT_NUMBER: 1
+          AGENT_DRY_RUN: false
+          AGENT_WORK_STATUS: Work
+          AGENT_LOGIN: copilot-swe-agent
+          AGENT_KNOWN_LOGINS: copilot-swe-agent,copilot
+          AGENT_COPILOT_BASE_REF: master
+          AGENT_COPILOT_MODEL: ''
+          AGENT_OUTPUT_DIR: ./.qa-output
+
+      - name: Upload QA snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-project-dispatch
+          path: ./.qa-output/agent-project-dispatch-qa.json

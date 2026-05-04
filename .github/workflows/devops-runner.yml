@@ -1,4 +1,4 @@
-name: Developer Project Runner
+name: DevOps Project Runner
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     - cron: '*/15 * * * *'
 
 jobs:
-  developer-runner:
+  devops-runner:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,12 +15,12 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: node src/developer-runner.js
+      - run: node src/devops-runner.js
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-          AGENT_DISPATCH_ROLE: developer
+          AGENT_DISPATCH_ROLE: devops
           AGENT_PROJECT_ORG: ControleOnline
           AGENT_PROJECT_NUMBER: 1
           AGENT_DRY_RUN: false
@@ -29,10 +29,10 @@ jobs:
           AGENT_KNOWN_LOGINS: copilot-swe-agent,copilot
           AGENT_COPILOT_BASE_REF: master
           AGENT_COPILOT_MODEL: ''
-          AGENT_OUTPUT_DIR: ./.developer-output
+          AGENT_OUTPUT_DIR: ./.devops-output
 
-      - name: Upload developer snapshot artifact
+      - name: Upload DevOps snapshot artifact
         uses: actions/upload-artifact@v4
         with:
-          name: developer-project-dispatch
-          path: ./.developer-output/agent-project-dispatch-developer.json
+          name: devops-project-dispatch
+          path: ./.devops-output/agent-project-dispatch-devops.json

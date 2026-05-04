@@ -20,17 +20,19 @@ jobs:
           APP_ID: ${{ secrets.APP_ID }}
           APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-          SECURITY_PROJECT_ORG: ControleOnline
-          SECURITY_PROJECT_NUMBER: 1
-          SECURITY_DRY_RUN: false
-          SECURITY_OUTPUT_DIR: ./.security-output
-          SECURITY_ANALYST_LOGINS: 'luizkim,copilot-swe-agent'
-          SECURITY_USE_COPILOT: true
-          SECURITY_COPILOT_BASE_REF: master
-          SECURITY_COPILOT_MODEL: ''
+          AGENT_DISPATCH_ROLE: security
+          AGENT_PROJECT_ORG: ControleOnline
+          AGENT_PROJECT_NUMBER: 1
+          AGENT_DRY_RUN: false
+          AGENT_WORK_STATUS: Work
+          AGENT_LOGIN: copilot-swe-agent
+          AGENT_KNOWN_LOGINS: copilot-swe-agent,copilot
+          AGENT_COPILOT_BASE_REF: master
+          AGENT_COPILOT_MODEL: ''
+          AGENT_OUTPUT_DIR: ./.security-output
 
       - name: Upload security snapshot artifact
         uses: actions/upload-artifact@v4
         with:
-          name: security-project-review
-          path: ./.security-output/security-project-review.json
+          name: security-project-dispatch
+          path: ./.security-output/agent-project-dispatch-security.json

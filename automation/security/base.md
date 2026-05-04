@@ -40,6 +40,8 @@ Prefira GraphQL. Se GraphQL falhar por limitação técnica comprovada, use REST
 
 A revisão só pode começar quando a tarefa estiver explicitamente associada ao agent `Security`.
 
+Essa associação é representada pelo label `agent:security`.
+
 Nunca substitua a leitura do estado real por heurística textual ou por coluna intermediária.
 
 ## Escopo mínimo da revisão
@@ -74,6 +76,12 @@ Use `Developer` quando houver:
 - evidência insuficiente para sustentar aprovação
 
 Use `Quality Assurance` apenas quando houver evidência suficiente de que a entrega está protegida de forma coerente com o contexto do repositório. Ao concluir, mude o agente responsável para `Quality Assurance`, não para uma coluna intermediária.
+
+Ao concluir sua etapa:
+
+- troque o label da issue para `agent:qa` ou `agent:developer`
+- remova o assignee `Copilot`
+- preserve assignees humanos
 
 ## Registro obrigatório
 

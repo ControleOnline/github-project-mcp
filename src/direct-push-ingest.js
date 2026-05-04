@@ -23,6 +23,9 @@ const CONFIG = {
   autoAssignDeveloper: (process.env.DIRECT_PUSH_ASSIGN_DEVELOPER || 'true').toLowerCase() === 'true',
 };
 
+const DEVELOPER_LABEL = 'agent:developer';
+const ALL_AGENT_LABELS = ['agent:developer', 'agent:security', 'agent:qa', 'agent:devops'];
+
 function token() {
   const value = (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '').trim();
   if (!value) throw new Error('GITHUB_TOKEN or GH_TOKEN is required');
@@ -108,6 +111,11 @@ async function loadProjectItems() {
                   number
                   title
                   url
+                  labels(first:20) {
+                    nodes {
+                      name
+                    }
+                  }
                   assignees(first:20) {
                     nodes {
                       login
@@ -165,6 +173,14 @@ function assigneeLogins(content) {
     .filter(Boolean);
 }
 
+function issueLabels(content) {
+  return (content?.labels?.nodes || []).map((label) => label?.name).filter(Boolean);
+}
+
+function currentAgentLabel(content) {
+  return issueLabels(content).find((label) => ALL_AGENT_LABELS.includes(label)) || null;
+}
+
 function hasDeveloperAgentAssignee(content) {
   const known = new Set(CONFIG.developerAgentLogins);
   return assigneeLogins(content).some((login) => known.has(login));
@@ -200,6 +216,31 @@ async function moveProjectItem(project, itemId, targetStatus) {
       }) { projectV2Item { id } }
     }
   `, { projectId: project.id, itemId, fieldId: field.id, optionId: option.id });
+}
+
+async function ensureLabelExists(repoFullName, labelName) {
+  const [owner, repo] = repoFullName.split('/');
+  try {
+    await rest(`/repos/${owner}/${repo}/labels`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: labelName,
+        color: '1f6feb',
+        description: 'Task atualmente com o agent Developer',
+      }),
+    });
+  } catch (error) {
+    const payload = JSON.parse(error.message || '{}');
+    if (payload.status !== 422) throw error;
+  }
+}
+
+async function replaceIssueLabels(repoFullName, issueNumber, labels) {
+  const [owner, repo] = repoFullName.split('/');
+  await rest(`/repos/${owner}/${repo}/issues/${issueNumber}/labels`, {
+    method: 'PUT',
+    body: JSON.stringify(labels),
+  });
 }
 
 async function getRepositoryAssignableActor(repositoryFullName) {
@@ -302,6 +343,7 @@ async function hasActiveDeveloperExecution() {
     if (statusOf(item)?.toLowerCase() !== CONFIG.status.toLowerCase()) return false;
     const content = item.content;
     if (!content || content.__typename !== 'Issue') return false;
+    if (currentAgentLabel(content) !== DEVELOPER_LABEL) return false;
     if (!hasDeveloperAgentAssignee(content)) return false;
     return !hasHumanAssignee(content);
   });
@@ -383,6 +425,8 @@ async function main() {
   const branch = await createTaskBranch(issue.number);
   let developerAssigned = false;
   let developerAssignmentReason = null;
+  await ensureLabelExists(CONFIG.repository, DEVELOPER_LABEL);
+  await replaceIssueLabels(CONFIG.repository, issue.number, ['devops', 'untracked-change', DEVELOPER_LABEL]);
 
   await rest(`/repos/${CONFIG.repository}/issues/${issue.number}/comments`, {
     method: 'POST',

@@ -58,7 +58,7 @@ Quando houver mudança fora do fluxo esperado:
 
 Quando a tarefa chegar em `DevOps`:
 
-- confirme que o agente responsável atual é `DevOps`
+- confirme que o label atual da issue é `agent:devops`
 - atualize a task branch com o `origin/master` atual
 - atualize o branch `staging` com o `origin/master` atual
 - resolva conflitos antes de tentar promover
@@ -87,3 +87,9 @@ Ao concluir:
 - informe o que foi corrigido
 - explicite a trilha resultante
 - deixe claro se a tarefa foi movida para `In Review` ou para qual agent ela voltou
+
+Ao mover para `In Review`:
+
+- remova labels `agent:*`
+- remova o assignee `Copilot`
+- preserve assignees humanos

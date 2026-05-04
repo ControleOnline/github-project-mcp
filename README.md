@@ -9,11 +9,31 @@ O fluxo oficial agora é orientado por agente responsável, e não por coluna in
 - `Quality Assurance` revisa e entrega para `DevOps`, ou devolve para `Developer` ou `Security`
 - `DevOps` sincroniza `master`, promove para `staging` e move a coluna para `In Review`
 
+## Como o agente responsável é representado
+
+O papel atual da task é registrado por um label exclusivo:
+
+- `agent:developer`
+- `agent:security`
+- `agent:qa`
+- `agent:devops`
+
+O assignee `Copilot` indica apenas que existe execução ativa do agent naquele momento.
+
+Durante handoff:
+
+- o agent atual troca o label para o próximo passo
+- o agent atual remove o assignee `Copilot`
+- assignees humanos permanecem
+- a coluna segue em `Work` até o fim do ciclo
+- `DevOps` é o único que move para `In Review`
+
 As regras-base dos agents ficam em [`automation/`](./automation/) e a política operacional detalhada fica em [`automate/`](./automate/).
 
 ## Estrutura
 
 - `automate/developer/README.md`: política operacional do runner de `Developer`
+- `automate/scripts/agent-project-dispatch.mjs`: despachante genérico de agents por label/Work
 - `automate/quality-assurance.md`: política central do agente de QA
 - `automate/security-review.md`: política central do analista de segurança
 - `automate/project-status.md`: regras oficiais de roteamento para QA
@@ -22,6 +42,7 @@ As regras-base dos agents ficam em [`automation/`](./automation/) e a política 
 - `automate/security-pull-request-review.md`: regras de review para Security
 - `automate/staging-merge.md`: regras de promoção para `staging` via DevOps
 - `automate/scripts/developer-project-dispatch.mjs`: base executável do despacho de `Developer`
+- `src/devops-runner.js`: wrapper do despachante de `DevOps`
 - `automate/scripts/qa-project-review.mjs`: base executável do fluxo de QA
 - `automate/scripts/security-project-review.mjs`: base executável do fluxo de Security
 - `automate/workflows/developer-project-dispatch.yml`: workflow de `Developer`
@@ -34,7 +55,7 @@ Os agents são disparados por GitHub Actions e usam o GitHub como fonte de verda
 
 Fluxo esperado:
 
-1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não tenha responsável humano e não exista outra execução ativa do próprio `Developer` em `Work`.
+1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não tenha responsável humano e não exista outra execução ativa do próprio `Developer`.
 2. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
 3. Confirmar qual é o agente responsável atual da tarefa.
 4. Aplicar a política correspondente em `automation/` e `automate/`.
@@ -115,6 +136,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 
 - ProjectV2 deve ser lido por GraphQL sempre que possível.
 - Busca textual não substitui a associação real do agente responsável nem a coluna final real quando ela for usada.
+- o label `agent:*` é a associação oficial do agent responsável atual
 - `Developer` não deve capturar tasks em `Work` que estejam atribuídas a pessoas.
 - Cada agent só pode concluir a task repassando para um próximo agent válido, ou para `In Review` no caso do DevOps.
 - O fluxo de Security pode acionar o Copilot cloud agent para aprofundar a investigação antes da decisão final, quando configurado.

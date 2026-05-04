@@ -42,6 +42,8 @@ Prefira GraphQL. Se GraphQL estiver indisponível por limitação comprovada, us
 
 Uma revisão de QA só pode começar quando a entrega realmente estiver em `Quality Assurance`.
 
+Essa associação é representada pelo label `agent:qa`.
+
 Não selecione entrega por aproximação textual, heurística de comentário ou busca imprecisa. A entrada correta é a tarefa explicitamente associada ao agent `Quality Assurance`.
 
 ## Checklist mínimo
@@ -68,6 +70,12 @@ Regras:
 - mova para `Developer` quando houver desvio técnico, funcional, falta de evidência ou bloqueio relevante
 - mova para `Security` quando a entrega exigir validação de segurança ainda não concluída
 - mova para `DevOps` apenas quando a entrega estiver aprovada e pronta para promoção técnica
+
+Ao concluir sua etapa:
+
+- troque o label da issue para `agent:devops`, `agent:security` ou `agent:developer`
+- remova o assignee `Copilot`
+- preserve assignees humanos
 
 ## Pull requests
 

@@ -27,6 +27,8 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 - `workflows/qa-project-review.yml`: workflow base para QA
 - `workflows/security-project-review.yml`: workflow base para Security
 - `.github/workflows/agent-flow-sync.yml`: runner central de labels iniciais, conflitos e limpeza final
+- `src/retry.js`: helper de retry para requests ao GitHub e autenticação
+- `src/run-with-retry.js`: retry de comandos idempotentes do workflow
 
 ## Objetivo
 
@@ -101,6 +103,15 @@ Esta base está apontada para:
 - `FLOW_KNOWN_AGENT_LOGINS`: logins tratados como agentes técnicos do fluxo
 - `FLOW_OUTPUT_DIR`: diretório do artefato JSON da rodada
 
+### Retry
+
+- `GITHUB_RETRY_ATTEMPTS`: número máximo de tentativas para requests ao GitHub. Padrão: `3`
+- `GITHUB_RETRY_DELAY_MS`: atraso base entre tentativas. Padrão: `2000`
+- `GITHUB_RETRY_MAX_DELAY_MS`: atraso máximo entre tentativas. Padrão: `15000`
+- `WORKFLOW_RETRY_ATTEMPTS`: número máximo de tentativas para comandos idempotentes de workflow, como `npm install`
+- `WORKFLOW_RETRY_DELAY_MS`: atraso base do retry de workflow
+- `WORKFLOW_RETRY_MAX_DELAY_MS`: atraso máximo do retry de workflow
+
 ## Observações
 
 - GraphQL continua sendo o caminho preferencial para leitura e escrita do ProjectV2.
@@ -110,6 +121,7 @@ Esta base está apontada para:
 - O agente de Security decide entre `Developer` e `Quality Assurance`.
 - Conflito de merge em PR aberto é desvio operacional para `DevOps`.
 - O agente de DevOps é o único que deve mover a coluna para `In Review`.
+- Retry automático deve cobrir falhas transitórias de rede, GitHub API e autenticação antes de falhar o workflow.
 - O fluxo de Security precisa ser conservador: ausência de evidência não vale como aprovação.
 - O script de Security foi deixado como base executável conservadora, espera uma decisão estruturada do analista e pode delegar investigação ao Copilot cloud agent quando configurado.
 - Quando houver conflito entre script e política, siga os arquivos `.md` desta pasta.

@@ -14,12 +14,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - run: node src/run-with-retry.js npm install
       - run: node src/agent-flow-sync-runner.js
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          GITHUB_RETRY_ATTEMPTS: 3
+          GITHUB_RETRY_DELAY_MS: 2000
+          GITHUB_RETRY_MAX_DELAY_MS: 15000
           FLOW_PROJECT_ORG: ControleOnline
           FLOW_PROJECT_NUMBER: 1
           FLOW_DRY_RUN: false

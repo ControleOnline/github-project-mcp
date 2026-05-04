@@ -1,4 +1,11 @@
 import fs from 'node:fs';
+import {
+  githubRetryConfig,
+  isRetriableGraphQLErrors,
+  isRetriableStatus,
+  retryAsync,
+  retryableError,
+} from '../../src/retry.js';
 
 const GITHUB_API_URL = 'https://api.github.com/graphql';
 const REST_API_URL = 'https://api.github.com';
@@ -10,6 +17,7 @@ const AGENT_LABELS = {
 
 const ALL_AGENT_LABELS = ['agent:developer', 'agent:security', 'agent:qa', 'agent:devops'];
 const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
+const RETRY = githubRetryConfig('FLOW');
 const LABEL_META = {
   'agent:developer': { color: '1f6feb', description: 'Task atualmente com o agent Developer' },
   'agent:security': { color: 'd1242f', description: 'Task atualmente com o agent Security' },
@@ -36,46 +44,93 @@ async function githubGraphQL(query, variables = {}) {
   const token = getToken();
   if (!token) throw new Error('Missing GitHub token. Set GITHUB_TOKEN or GH_TOKEN.');
 
-  const response = await fetch(GITHUB_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      'User-Agent': 'controleonline-agent-flow-sync',
+  return retryAsync(
+    async () => {
+      let response;
+      try {
+        response = await fetch(GITHUB_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'User-Agent': 'controleonline-agent-flow-sync',
+          },
+          body: JSON.stringify({ query, variables }),
+        });
+      } catch (error) {
+        throw retryableError(`GitHub GraphQL request failed: ${error.message || error}`);
+      }
+
+      const text = await response.text();
+      let json;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        const message = JSON.stringify({ status: response.status, body: text }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      if (!response.ok || json.errors) {
+        const message = JSON.stringify({ status: response.status, errors: json.errors || json }, null, 2);
+        if ((!response.ok && isRetriableStatus(response.status)) || isRetriableGraphQLErrors(json.errors)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+
+      return json.data;
     },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const json = await response.json();
-  if (!response.ok || json.errors) {
-    throw new Error(JSON.stringify({ status: response.status, errors: json.errors || json }, null, 2));
-  }
-
-  return json.data;
+    { label: 'GitHub GraphQL flow sync', ...RETRY }
+  );
 }
 
 async function githubRest(path, options = {}) {
   const token = getToken();
   if (!token) throw new Error('Missing GitHub token. Set GITHUB_TOKEN or GH_TOKEN.');
 
-  const response = await fetch(`${REST_API_URL}${path}`, {
-    ...options,
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Content-Type': 'application/json',
-      'User-Agent': 'controleonline-agent-flow-sync',
-      ...(options.headers || {}),
-    },
-  });
+  return retryAsync(
+    async () => {
+      let response;
+      try {
+        response = await fetch(`${REST_API_URL}${path}`, {
+          ...options,
+          headers: {
+            Accept: 'application/vnd.github+json',
+            Authorization: `Bearer ${token}`,
+            'X-GitHub-Api-Version': '2022-11-28',
+            'Content-Type': 'application/json',
+            'User-Agent': 'controleonline-agent-flow-sync',
+            ...(options.headers || {}),
+          },
+        });
+      } catch (error) {
+        throw retryableError(`GitHub REST request failed: ${error.message || error}`);
+      }
 
-  const text = await response.text();
-  const body = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(JSON.stringify({ status: response.status, path, body }, null, 2));
-  }
-  return body;
+      const text = await response.text();
+      let body;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        const message = JSON.stringify({ status: response.status, path, body: text }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      if (!response.ok) {
+        const message = JSON.stringify({ status: response.status, path, body }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      return body;
+    },
+    { label: `GitHub REST flow sync ${path}`, ...RETRY }
+  );
 }
 
 async function getProjectSnapshot(org, projectNumber) {

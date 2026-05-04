@@ -1,8 +1,10 @@
 import crypto from 'node:crypto';
+import { githubRetryConfig, isRetriableStatus, retryAsync, retryableError } from './retry.js';
 
 const REST_API = 'https://api.github.com';
 const API_VERSION = '2026-03-10';
 let cachedToken = null;
+const RETRY = githubRetryConfig('AUTH');
 
 function requiredEnv(name) {
   const value = (process.env[name] || '').trim();
@@ -37,25 +39,49 @@ function appJwt() {
 
 async function installationToken() {
   const installationId = requiredEnv('APP_INSTALLATION_ID');
-  const response = await fetch(`${REST_API}/app/installations/${installationId}/access_tokens`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${appJwt()}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': API_VERSION,
-      'User-Agent': 'github-project-mcp',
+  return retryAsync(
+    async () => {
+      let response;
+      try {
+        response = await fetch(`${REST_API}/app/installations/${installationId}/access_tokens`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${appJwt()}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': API_VERSION,
+            'User-Agent': 'github-project-mcp',
+          },
+        });
+      } catch (error) {
+        throw retryableError(`GitHub App token request failed: ${error.message || error}`);
+      }
+
+      const text = await response.text();
+      let body;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        const message = JSON.stringify({ status: response.status, body: text }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      if (!response.ok) {
+        const message = JSON.stringify({ status: response.status, body }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+
+      return {
+        token: body.token,
+        expiresAt: new Date(body.expires_at).getTime(),
+      };
     },
-  });
-
-  const body = await response.json();
-  if (!response.ok) {
-    throw new Error(JSON.stringify({ status: response.status, body }, null, 2));
-  }
-
-  return {
-    token: body.token,
-    expiresAt: new Date(body.expires_at).getTime(),
-  };
+    { label: 'GitHub App installation token', ...RETRY }
+  );
 }
 
 export async function getAuthToken() {

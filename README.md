@@ -45,6 +45,8 @@ As regras-base dos agents ficam em [`automation/`](./automation/) e a política 
 - `automate/staging-merge.md`: regras de promoção para `staging` via DevOps
 - `automate/scripts/developer-project-dispatch.mjs`: base executável do despacho de `Developer`
 - `src/agent-flow-sync-runner.js`: wrapper do sincronizador central do fluxo
+- `src/retry.js`: política compartilhada de retry para chamadas externas do GitHub
+- `src/run-with-retry.js`: wrapper seguro de retry para comandos idempotentes do workflow, como `npm install`
 - `src/devops-runner.js`: wrapper do despachante de `DevOps`
 - `automate/scripts/qa-project-review.mjs`: base executável do fluxo de QA
 - `automate/scripts/security-project-review.mjs`: base executável do fluxo de Security
@@ -133,6 +135,17 @@ FLOW_KNOWN_AGENT_LOGINS=copilot-swe-agent,copilot
 FLOW_OUTPUT_DIR=./.flow-output
 ```
 
+### Retry
+
+```bash
+GITHUB_RETRY_ATTEMPTS=3
+GITHUB_RETRY_DELAY_MS=2000
+GITHUB_RETRY_MAX_DELAY_MS=15000
+WORKFLOW_RETRY_ATTEMPTS=3
+WORKFLOW_RETRY_DELAY_MS=3000
+WORKFLOW_RETRY_MAX_DELAY_MS=20000
+```
+
 ## Execução local
 
 Execute os scripts Node em `automate/scripts/` com `GITHUB_TOKEN` ou `GH_TOKEN`, ou pelos runners que montam o token a partir do GitHub App.
@@ -158,6 +171,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - task aberta em `Work` sem `agent:*` entra por padrão em `Developer`
 - `Developer` não deve capturar tasks em `Work` que estejam exclusivamente atribuídas a pessoas.
 - conflito de merge em PR aberto deve ir para `DevOps`
+- falhas transitórias de GitHub, rede e autenticação devem usar retry automático antes de falhar a rodada
 - Cada agent só pode concluir a task repassando para um próximo agent válido, ou para `In Review` no caso do DevOps.
 - O fluxo de Security pode acionar o Copilot cloud agent para aprofundar a investigação antes da decisão final, quando configurado.
 - Quando a automação for mais limitada do que a política, a política em `automate/*.md` prevalece.

@@ -59,7 +59,7 @@ Os agents são disparados por GitHub Actions e usam o GitHub como fonte de verda
 
 Fluxo esperado:
 
-1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não tenha responsável humano e não exista outra execução ativa do próprio `Developer`.
+1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não esteja exclusivamente com pessoas e não exista outra execução ativa do próprio `Developer`.
 2. Task aberta em `Work` sem `agent:*` pertence inicialmente a `Developer`.
 3. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
 4. Confirmar qual é o agente responsável atual da tarefa.
@@ -156,7 +156,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - Busca textual não substitui a associação real do agente responsável nem a coluna final real quando ela for usada.
 - o label `agent:*` é a associação oficial do agent responsável atual
 - task aberta em `Work` sem `agent:*` entra por padrão em `Developer`
-- `Developer` não deve capturar tasks em `Work` que estejam atribuídas a pessoas.
+- `Developer` não deve capturar tasks em `Work` que estejam exclusivamente atribuídas a pessoas.
 - conflito de merge em PR aberto deve ir para `DevOps`
 - Cada agent só pode concluir a task repassando para um próximo agent válido, ou para `In Review` no caso do DevOps.
 - O fluxo de Security pode acionar o Copilot cloud agent para aprofundar a investigação antes da decisão final, quando configurado.

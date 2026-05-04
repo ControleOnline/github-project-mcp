@@ -195,6 +195,10 @@ function hasHumanAssignee(issue, knownAgentLogins) {
   return assigneeLogins(issue).some((login) => !knownAgentLogins.has(login));
 }
 
+function hasHumanOnlyAssignee(issue, knownAgentLogins) {
+  return hasHumanAssignee(issue, knownAgentLogins) && !hasAgentAssignee(issue, knownAgentLogins);
+}
+
 function normalizePullRequests(issue) {
   const seen = new Set();
   const pullRequests = [];
@@ -323,6 +327,7 @@ function serializeItem(item, knownAgentLogins) {
     assignees: assigneeLogins(issue),
     hasAgentAssignee: hasAgentAssignee(issue, knownAgentLogins),
     hasHumanAssignee: hasHumanAssignee(issue, knownAgentLogins),
+    hasHumanOnlyAssignee: hasHumanOnlyAssignee(issue, knownAgentLogins),
     conflictingPullRequests: pullRequests
       .filter((pr) => pr?.state === 'OPEN' && pr?.mergeable === 'CONFLICTING')
       .map((pr) => ({
@@ -379,10 +384,31 @@ async function main() {
     const labels = issueLabels(issue);
     const stageLabel = currentAgentLabel(issue);
     const agentAssigned = hasAgentAssignee(issue, knownAgentLogins);
-    const humanAssigned = hasHumanAssignee(issue, knownAgentLogins);
+    const humanOnlyAssigned = hasHumanOnlyAssignee(issue, knownAgentLogins);
     const record = serializeItem(item, knownAgentLogins);
 
-    if (status?.toLowerCase() === workStatus.toLowerCase() && !stageLabel && !agentAssigned && !humanAssigned) {
+    if (!humanOnlyAssigned && hasConflictingPullRequest(issue) && stageLabel !== AGENT_LABELS.devops) {
+      const nextLabels = [...new Set([...labels.filter((label) => !ALL_AGENT_LABELS.includes(label)), AGENT_LABELS.devops])];
+      const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
+      result.actions.push({
+        type: 'route-conflict-to-devops',
+        issue: record.issue,
+        previewLabels: nextLabels,
+        clearedAgentAssignee: agentAssigned,
+        preservedHumanActorCount: preservedHumanActorIds.length,
+      });
+      if (!dryRun) {
+        await ensureLabelExists(issue.repository.nameWithOwner, AGENT_LABELS.devops);
+        await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
+        if (agentAssigned) {
+          await replaceAssignableActors(issue.id, preservedHumanActorIds);
+        }
+        await addIssueComment(issue.id, buildConflictComment(issueRef));
+      }
+      continue;
+    }
+
+    if (status?.toLowerCase() === workStatus.toLowerCase() && !stageLabel && !humanOnlyAssigned) {
       const nextLabels = [...new Set([...labels, AGENT_LABELS.developer])];
       result.actions.push({
         type: 'seed-developer',
@@ -393,25 +419,6 @@ async function main() {
         await ensureLabelExists(issue.repository.nameWithOwner, AGENT_LABELS.developer);
         await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
         await addIssueComment(issue.id, buildDeveloperSeedComment(issueRef));
-      }
-      continue;
-    }
-
-    if (!humanAssigned && hasConflictingPullRequest(issue) && stageLabel !== AGENT_LABELS.devops) {
-      const nextLabels = [...new Set([...labels.filter((label) => !ALL_AGENT_LABELS.includes(label)), AGENT_LABELS.devops])];
-      result.actions.push({
-        type: 'route-conflict-to-devops',
-        issue: record.issue,
-        previewLabels: nextLabels,
-        clearedAgentAssignee: agentAssigned,
-      });
-      if (!dryRun) {
-        await ensureLabelExists(issue.repository.nameWithOwner, AGENT_LABELS.devops);
-        await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
-        if (agentAssigned) {
-          await replaceAssignableActors(issue.id, []);
-        }
-        await addIssueComment(issue.id, buildConflictComment(issueRef));
       }
       continue;
     }

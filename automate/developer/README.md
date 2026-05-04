@@ -10,7 +10,7 @@ Ele:
 
 - procura tasks abertas na coluna `Work`
 - trata task sem `agent:*` em `Work` como entrada padrao do fluxo
-- ignora tasks que ja estejam com responsavel humano
+- ignora tasks que estejam exclusivamente com pessoas
 - ignora tasks que ja estejam com algum agent em execucao na propria coluna `Work`
 - atribui o `copilot-swe-agent` com instrucoes de `Developer` para a proxima task elegivel
 - registra comentario objetivo quando a atribuicao for executada
@@ -23,7 +23,7 @@ Ele:
 
 ## Regras operacionais
 
-- nao retirar task de pessoas
+- nao retirar task que esteja exclusivamente com pessoas
 - task nova em `Work` sem `agent:*` pertence inicialmente a `Developer`
 - nao iniciar nova task se ja houver outra em execucao pelo `Developer` na coluna `Work`
 - usar `master` como branch base operacional

@@ -345,7 +345,7 @@ async function hasActiveDeveloperExecution() {
     if (!content || content.__typename !== 'Issue') return false;
     if (currentAgentLabel(content) !== DEVELOPER_LABEL) return false;
     if (!hasDeveloperAgentAssignee(content)) return false;
-    return !hasHumanAssignee(content);
+    return true;
   });
 }
 

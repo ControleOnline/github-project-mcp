@@ -216,6 +216,10 @@ function hasHumanAssignee(issue, knownAgentLogins) {
   return assigneeLogins(issue).some((login) => !knownAgentLogins.has(login));
 }
 
+function hasHumanOnlyAssignee(issue, knownAgentLogins) {
+  return hasHumanAssignee(issue, knownAgentLogins) && !hasAgentAssignee(issue, knownAgentLogins);
+}
+
 function getAssignableActor(issue, preferredAgentLogin) {
   return (issue.repository?.suggestedActors?.nodes || []).find(
     (actor) => actor?.login?.toLowerCase() === preferredAgentLogin
@@ -234,7 +238,7 @@ function isEligibleForRole(item, role, workStatus, knownAgentLogins) {
   const issue = item.content;
   if (!issue?.repository?.nameWithOwner) return false;
   if (issue.state !== 'OPEN') return false;
-  if (hasHumanAssignee(issue, knownAgentLogins)) return false;
+  if (hasHumanOnlyAssignee(issue, knownAgentLogins)) return false;
   if (hasAgentAssignee(issue, knownAgentLogins)) return false;
 
   const stageLabel = currentAgentLabel(issue);
@@ -254,7 +258,6 @@ function isActiveForRole(item, role, knownAgentLogins) {
   if (!issue?.repository?.nameWithOwner) return false;
   if (issue.state !== 'OPEN') return false;
   if (!hasAgentAssignee(issue, knownAgentLogins)) return false;
-  if (hasHumanAssignee(issue, knownAgentLogins)) return false;
   return currentAgentLabel(issue) === ROLE_META[role].label;
 }
 
@@ -284,7 +287,7 @@ function buildAssignmentComment(role, issueRef) {
     '',
     `Issue: ${issueRef}`,
     origin,
-    'Critério: task elegível, sem responsável humano e sem outra execução ativa do mesmo agent.',
+    'Critério: task elegível, sem ownership exclusivamente humano e sem outra execução ativa do mesmo agent.',
     `Ação: o runner atribuiu o agent \`${meta.displayName}\` para iniciar a execução.`,
   ].join('\n');
 }
@@ -384,6 +387,7 @@ function serializeItem(item, knownAgentLogins, preferredAgentLogin) {
     assignees: assigneeLogins(issue),
     hasAgentAssignee: hasAgentAssignee(issue, knownAgentLogins),
     hasHumanAssignee: hasHumanAssignee(issue, knownAgentLogins),
+    hasHumanOnlyAssignee: hasHumanOnlyAssignee(issue, knownAgentLogins),
     canAssignPreferredAgent: Boolean(actor?.id),
   };
 }

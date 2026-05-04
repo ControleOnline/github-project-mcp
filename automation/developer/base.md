@@ -44,7 +44,7 @@ Prefira GraphQL sempre que ele estiver operacional. Se GraphQL falhar por limita
 Antes de iniciar ou retomar uma execução:
 
 - confirme que a issue está `open`
-- confirme que a issue não está atribuída a outra pessoa
+- confirme que a issue não está exclusivamente atribuída a pessoas
 - confirme que o agente responsável atual da entrega é `Developer`, ou que a task ainda está em `Work` sem `agent:*`
 - confirme que não existe bloqueio explícito mais prioritário vindo de `Security`
 

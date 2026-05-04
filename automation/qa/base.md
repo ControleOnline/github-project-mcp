@@ -84,6 +84,7 @@ Quando houver PR:
 - aprove apenas quando a decisão final for `DevOps`
 - solicite changes quando a decisão final for `Developer`
 - não deixe PR sem decisão quando a revisão já tiver sido concluída
+- se a credencial ativa coincidir com a autoria do PR, não publique `APPROVE` nem `REQUEST_CHANGES`; registre comentário rastreável e mantenha a decisão da task com base na evidência real
 
 ## Comentários finais
 

@@ -29,6 +29,12 @@ O review precisa apontar objetivamente:
 - a regra de autorização ou negócio afetada
 - o que precisa ser corrigido
 
+Se a credencial ativa da automação coincidir com a autoria do PR:
+
+- não publicar `APPROVE` nem `REQUEST_CHANGES`
+- registrar comentário rastreável no PR
+- manter a decisão da task com base na evidência, sem simular review válido
+
 ## Comentário obrigatório
 
 Ao concluir a revisão, o agente deve deixar comentário rastreável em issue e PR, quando aplicável, contendo:

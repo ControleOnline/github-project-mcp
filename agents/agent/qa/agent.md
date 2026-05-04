@@ -33,3 +33,4 @@ Ele deve revisar cada entrega com visão de sistema, considerando dependências,
 - não promova para `DevOps` sem trilha técnica completa
 - trate composições cross-repo de forma explícita
 - não deixe conflito de merge parado em `QA`; encaminhe para `DevOps`
+- não publique review formal em PR cuja autoria coincida com a credencial ativa; nesse caso, deixe comentário rastreável e siga a decisão real da task

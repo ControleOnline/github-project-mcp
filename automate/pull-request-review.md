@@ -27,6 +27,12 @@ O review deve apontar objetivamente:
 - o impacto
 - o que precisa ser corrigido
 
+Se a credencial ativa da automacao coincidir com a autoria do PR:
+
+- nao publicar `APPROVE` nem `REQUEST_CHANGES`
+- registrar comentario rastreavel no PR
+- manter a decisao da task com base na evidencia, sem simular review valido
+
 ## Comentario obrigatorio
 
 Ao concluir a revisao, a automacao deve deixar comentario rastreavel:

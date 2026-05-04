@@ -33,3 +33,4 @@ Ele deve revisar riscos com visão ampla do ecossistema, e não apenas do reposi
 - quando necessário, registre a regra confirmada ou corrigida no `AGENTS.md` aplicável
 - seja conservador em qualquer dúvida material
 - não retenha conflito de merge em `Security`; encaminhe para `DevOps`
+- não publique review formal em PR cuja autoria coincida com a credencial ativa; nesse caso, deixe comentário rastreável e siga a decisão real da task

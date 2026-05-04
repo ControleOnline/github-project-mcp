@@ -86,6 +86,14 @@ Ao concluir sua etapa:
 - remova o assignee `Copilot`
 - preserve assignees humanos
 
+## Pull requests
+
+Quando houver PR:
+
+- aprove apenas quando a decisão final for `Quality Assurance`
+- solicite changes quando a decisão final for `Developer`
+- se a credencial ativa coincidir com a autoria do PR, não publique `APPROVE` nem `REQUEST_CHANGES`; registre comentário rastreável e mantenha a decisão da task com base na evidência real
+
 ## Registro obrigatório
 
 Quando a revisão exigir explicitação, refinamento ou correção de regra de negócio ou autorização:

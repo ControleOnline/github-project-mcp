@@ -212,6 +212,7 @@ async function getProjectSnapshot(org, projectNumber) {
                   }
                   assignees(first:20) {
                     nodes {
+                      id
                       login
                     }
                   }
@@ -275,6 +276,15 @@ function hasHumanOnlyAssignee(issue, knownAgentLogins) {
   return hasHumanAssignee(issue, knownAgentLogins) && !hasAgentAssignee(issue, knownAgentLogins);
 }
 
+function retainedHumanActorIds(issue, knownAgentLogins) {
+  return (issue.assignees?.nodes || [])
+    .filter((assignee) => {
+      const login = (assignee?.login || '').trim().toLowerCase();
+      return login && !knownAgentLogins.has(login) && assignee?.id;
+    })
+    .map((assignee) => assignee.id);
+}
+
 function getAssignableActor(issue, preferredAgentLogin) {
   return (issue.repository?.suggestedActors?.nodes || []).find(
     (actor) => actor?.login?.toLowerCase() === preferredAgentLogin
@@ -293,19 +303,25 @@ function isEligibleForRole(item, role, workStatus, knownAgentLogins) {
   const issue = item.content;
   if (!issue?.repository?.nameWithOwner) return false;
   if (issue.state !== 'OPEN') return false;
-  if (hasHumanOnlyAssignee(issue, knownAgentLogins)) return false;
-  if (hasAgentAssignee(issue, knownAgentLogins)) return false;
 
   const stageLabel = currentAgentLabel(issue);
   const roleLabel = ROLE_META[role].label;
+  const agentAssigned = hasAgentAssignee(issue, knownAgentLogins);
+  const humanOnlyAssigned = hasHumanOnlyAssignee(issue, knownAgentLogins);
+
+  if (stageLabel === roleLabel) {
+    return !agentAssigned;
+  }
 
   if (role === 'developer') {
     const status = getStatusValue(item);
     if (status?.toLowerCase() !== workStatus.toLowerCase()) return false;
-    return !stageLabel || stageLabel === roleLabel;
+    if (stageLabel) return false;
+    if (humanOnlyAssigned) return false;
+    return !agentAssigned;
   }
 
-  return stageLabel === roleLabel;
+  return false;
 }
 
 function isActiveForRole(item, role, knownAgentLogins) {
@@ -313,7 +329,6 @@ function isActiveForRole(item, role, knownAgentLogins) {
   if (!issue?.repository?.nameWithOwner) return false;
   if (issue.state !== 'OPEN') return false;
   if (!hasAgentAssignee(issue, knownAgentLogins)) return false;
-  if (hasHumanAssignee(issue, knownAgentLogins)) return false;
   return currentAgentLabel(issue) === ROLE_META[role].label;
 }
 
@@ -374,11 +389,11 @@ async function replaceIssueLabels(repoFullName, issueNumber, nextLabels) {
   });
 }
 
-async function assignIssueToAgent(issueId, actorId, repositoryId, baseRef, customInstructions, model) {
+async function assignIssueToAgent(issueId, actorIds, repositoryId, baseRef, customInstructions, model) {
   return githubGraphQL(
     `mutation(
       $issueId:ID!,
-      $actorId:ID!,
+      $actorIds:[ID!]!,
       $repositoryId:ID!,
       $baseRef:String!,
       $customInstructions:String!,
@@ -386,7 +401,7 @@ async function assignIssueToAgent(issueId, actorId, repositoryId, baseRef, custo
     ) {
       replaceActorsForAssignable(input: {
         assignableId: $issueId,
-        actorIds: [$actorId],
+        actorIds: $actorIds,
         agentAssignment: {
           targetRepositoryId: $repositoryId,
           baseRef: $baseRef,
@@ -401,7 +416,7 @@ async function assignIssueToAgent(issueId, actorId, repositoryId, baseRef, custo
         }
       }
     }`,
-    { issueId, actorId, repositoryId, baseRef, customInstructions, model: model || null },
+    { issueId, actorIds, repositoryId, baseRef, customInstructions, model: model || null },
     {
       'GraphQL-Features': 'issues_copilot_assignment_api_support,coding_agent_model_selection',
     }
@@ -500,7 +515,11 @@ async function main() {
   if (activeItems.length > 0) {
     result.ok = true;
     result.skipped = true;
-    result.reason = `Já existe task em execução pelo agent ${meta.displayName}.`;
+    const refs = activeItems
+      .slice(0, 5)
+      .map((item) => `${item.content.repository.nameWithOwner}#${item.content.number}`)
+      .join(', ');
+    result.reason = `Já existe task em execução pelo agent ${meta.displayName}: ${refs}.`;
     const outPath = writeOutputFile(result);
     console.log(JSON.stringify({ ok: true, skipped: true, reason: result.reason, outPath }, null, 2));
     return;
@@ -532,6 +551,8 @@ async function main() {
 
     const currentLabels = issueLabels(issue);
     const nextLabels = [...new Set([...currentLabels.filter((label) => !ALL_AGENT_LABELS.includes(label)), meta.label])];
+    const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
+    const nextActorIds = [...new Set([actor.id, ...preservedHumanActorIds])];
 
     result.selectedItem = targetRecord;
 
@@ -540,7 +561,7 @@ async function main() {
       await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
       await assignIssueToAgent(
         issue.id,
-        actor.id,
+        nextActorIds,
         issue.repository.id,
         baseRef,
         buildAgentInstructions(role, issueRef, issue.number),
@@ -553,6 +574,7 @@ async function main() {
       result.previewComment = buildAssignmentComment(role, issueRef);
       result.previewInstructions = buildAgentInstructions(role, issueRef, issue.number);
       result.previewLabels = nextLabels;
+      result.previewActorIds = nextActorIds;
     }
 
     result.ok = true;

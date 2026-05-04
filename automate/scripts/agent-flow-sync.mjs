@@ -442,7 +442,7 @@ async function main() {
     const humanOnlyAssigned = hasHumanOnlyAssignee(issue, knownAgentLogins);
     const record = serializeItem(item, knownAgentLogins);
 
-    if (!humanOnlyAssigned && hasConflictingPullRequest(issue) && stageLabel !== AGENT_LABELS.devops) {
+    if ((stageLabel || !humanOnlyAssigned) && hasConflictingPullRequest(issue) && stageLabel !== AGENT_LABELS.devops) {
       const nextLabels = [...new Set([...labels.filter((label) => !ALL_AGENT_LABELS.includes(label)), AGENT_LABELS.devops])];
       const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
       result.actions.push({

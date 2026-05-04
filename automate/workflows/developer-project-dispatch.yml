@@ -24,22 +24,24 @@ jobs:
 
       - name: Run developer project dispatch
         env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           APP_ID: ${{ secrets.APP_ID }}
           APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-          DEVELOPER_PROJECT_ORG: ControleOnline
-          DEVELOPER_PROJECT_NUMBER: 1
-          DEVELOPER_DRY_RUN: false
-          DEVELOPER_WORK_STATUS: Work
-          DEVELOPER_AGENT_LOGIN: copilot-swe-agent
-          DEVELOPER_AGENT_LOGINS: copilot-swe-agent,copilot
-          DEVELOPER_COPILOT_BASE_REF: master
-          DEVELOPER_COPILOT_MODEL: ''
-          DEVELOPER_OUTPUT_DIR: ./.developer-output
+          AGENT_DISPATCH_ROLE: developer
+          AGENT_PROJECT_ORG: ControleOnline
+          AGENT_PROJECT_NUMBER: 1
+          AGENT_DRY_RUN: false
+          AGENT_WORK_STATUS: Work
+          AGENT_LOGIN: copilot-swe-agent
+          AGENT_KNOWN_LOGINS: copilot-swe-agent,copilot
+          AGENT_COPILOT_BASE_REF: master
+          AGENT_COPILOT_MODEL: ''
+          AGENT_OUTPUT_DIR: ./.developer-output
         run: node src/developer-runner.js
 
       - name: Upload developer snapshot artifact
         uses: actions/upload-artifact@v4
         with:
           name: developer-project-dispatch
-          path: ./.developer-output/developer-project-dispatch.json
+          path: ./.developer-output/agent-project-dispatch-developer.json

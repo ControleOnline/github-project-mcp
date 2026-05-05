@@ -17,12 +17,17 @@ const AGENT_LABELS = {
 
 const ALL_AGENT_LABELS = ['agent:developer', 'agent:security', 'agent:qa', 'agent:devops'];
 const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
+const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
 const RETRY = githubRetryConfig('FLOW');
 const LABEL_META = {
   'agent:developer': { color: '1f6feb', description: 'Task atualmente com o agent Developer' },
   'agent:security': { color: 'd1242f', description: 'Task atualmente com o agent Security' },
   'agent:qa': { color: '8b5cf6', description: 'Task atualmente com o agent QA' },
   'agent:devops': { color: 'fb8c00', description: 'Task atualmente com o agent DevOps' },
+  'ops:copilot-unavailable': {
+    color: 'd4a72c',
+    description: 'Copilot cloud agent nao habilitado no repositorio alvo',
+  },
 };
 
 function env(name, fallback = '') {
@@ -406,6 +411,7 @@ async function main() {
   const dryRun = env('FLOW_DRY_RUN', 'true').toLowerCase() !== 'false';
   const workStatus = env('FLOW_WORK_STATUS', 'Work');
   const inReviewStatus = env('FLOW_IN_REVIEW_STATUS', 'In Review');
+  const unsupportedLabel = env('FLOW_UNSUPPORTED_LABEL', DEFAULT_UNSUPPORTED_LABEL);
   const knownAgentLogins = new Set(
     parseCsv(env('FLOW_KNOWN_AGENT_LOGINS', DEFAULT_KNOWN_AGENT_LOGINS)).map((login) => login.toLowerCase())
   );
@@ -437,12 +443,18 @@ async function main() {
     const issueRef = `${issue.repository.nameWithOwner}#${issue.number}`;
     const status = getStatusValue(item);
     const labels = issueLabels(issue);
+    const blockedByUnsupportedCopilot = labels.includes(unsupportedLabel);
     const stageLabel = currentAgentLabel(issue);
     const agentAssigned = hasAgentAssignee(issue, knownAgentLogins);
     const humanOnlyAssigned = hasHumanOnlyAssignee(issue, knownAgentLogins);
     const record = serializeItem(item, knownAgentLogins);
 
-    if ((stageLabel || !humanOnlyAssigned) && hasConflictingPullRequest(issue) && stageLabel !== AGENT_LABELS.devops) {
+    if (
+      !blockedByUnsupportedCopilot &&
+      (stageLabel || !humanOnlyAssigned) &&
+      hasConflictingPullRequest(issue) &&
+      stageLabel !== AGENT_LABELS.devops
+    ) {
       const nextLabels = [...new Set([...labels.filter((label) => !ALL_AGENT_LABELS.includes(label)), AGENT_LABELS.devops])];
       const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
       result.actions.push({
@@ -463,7 +475,12 @@ async function main() {
       continue;
     }
 
-    if (status?.toLowerCase() === workStatus.toLowerCase() && !stageLabel && !humanOnlyAssigned) {
+    if (
+      !blockedByUnsupportedCopilot &&
+      status?.toLowerCase() === workStatus.toLowerCase() &&
+      !stageLabel &&
+      !humanOnlyAssigned
+    ) {
       const nextLabels = [...new Set([...labels, AGENT_LABELS.developer])];
       result.actions.push({
         type: 'seed-developer',

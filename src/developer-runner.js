@@ -1,7 +1,1 @@
-import { getAuthToken } from './github-app-auth.js';
-
-process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || await getAuthToken();
-
-process.env.AGENT_DISPATCH_ROLE = process.env.AGENT_DISPATCH_ROLE || 'developer';
-
-await import('../automate/scripts/agent-project-dispatch.mjs');
+import { getAuthToken } from './github-app-auth.js'; process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || await getAuthToken(); process.env.AGENT_DISPATCH_ROLE = process.env.AGENT_DISPATCH_ROLE || 'developer'; await import('./agent-dispatch-runner.js');

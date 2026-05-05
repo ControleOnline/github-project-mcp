@@ -1,10 +1,18 @@
+import fs from 'node:fs';
+
 const GRAPHQL_API = 'https://api.github.com/graphql';
 const REST_API = 'https://api.github.com';
+const TRACKING_LABELS = ['devops', 'untracked-change'];
 
 const CONFIG = {
   org: process.env.DEVOPS_PROJECT_ORG || process.env.QA_PROJECT_ORG || 'ControleOnline',
   projectNumber: Number(process.env.DEVOPS_PROJECT_NUMBER || process.env.QA_PROJECT_NUMBER || 1),
-  status: process.env.DEVOPS_UNTRACKED_STATUS || process.env.DEVOPS_TARGET_STATUS || process.env.QA_UNTRACKED_STATUS || process.env.QA_TARGET_STATUS || 'Work',
+  status:
+    process.env.DEVOPS_UNTRACKED_STATUS ||
+    process.env.DEVOPS_TARGET_STATUS ||
+    process.env.QA_UNTRACKED_STATUS ||
+    process.env.QA_TARGET_STATUS ||
+    'Work',
   repository: process.env.GITHUB_REPOSITORY,
   refName: process.env.GITHUB_REF_NAME,
   sha: process.env.GITHUB_SHA,
@@ -54,7 +62,8 @@ async function rest(path, options = {}) {
 }
 
 async function loadProject() {
-  const data = await gql(`
+  const data = await gql(
+    `
     query($org:String!, $number:Int!) {
       organization(login:$org) {
         projectV2(number:$number) {
@@ -68,7 +77,9 @@ async function loadProject() {
         }
       }
     }
-  `, { org: CONFIG.org, number: CONFIG.projectNumber });
+  `,
+    { org: CONFIG.org, number: CONFIG.projectNumber }
+  );
   const project = data?.organization?.projectV2;
   if (!project) throw new Error(`Project not found: ${CONFIG.org}/projects/${CONFIG.projectNumber}`);
   return project;
@@ -81,13 +92,16 @@ function statusField(project) {
 }
 
 async function addIssueToProject(project, issueNodeId) {
-  const data = await gql(`
+  const data = await gql(
+    `
     mutation($projectId:ID!, $contentId:ID!) {
       addProjectV2ItemById(input:{ projectId:$projectId, contentId:$contentId }) {
         item { id }
       }
     }
-  `, { projectId: project.id, contentId: issueNodeId });
+  `,
+    { projectId: project.id, contentId: issueNodeId }
+  );
   return data.addProjectV2ItemById.item.id;
 }
 
@@ -95,7 +109,8 @@ async function moveProjectItem(project, itemId, targetStatus) {
   const field = statusField(project);
   const option = field.options.find((o) => o.name.toLowerCase() === targetStatus.toLowerCase());
   if (!option) throw new Error(`Status option not found: ${targetStatus}`);
-  await gql(`
+  await gql(
+    `
     mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!) {
       updateProjectV2ItemFieldValue(input:{
         projectId:$projectId,
@@ -104,28 +119,41 @@ async function moveProjectItem(project, itemId, targetStatus) {
         value:{ singleSelectOptionId:$optionId }
       }) { projectV2Item { id } }
     }
-  `, { projectId: project.id, itemId, fieldId: field.id, optionId: option.id });
+  `,
+    { projectId: project.id, itemId, fieldId: field.id, optionId: option.id }
+  );
 }
 
 function readEvent() {
   if (!CONFIG.eventPath) return null;
   try {
-    const fs = require('fs');
     return JSON.parse(fs.readFileSync(CONFIG.eventPath, 'utf8'));
   } catch {
     return null;
   }
 }
 
+function trackingTitle() {
+  return `DevOps: mudança sem tarefa em ${CONFIG.refName}`;
+}
+
+function summarizeCommits(event) {
+  return (event?.commits || []).slice(0, 20).map((commit) => {
+    const sha = commit.id?.slice(0, 12) || '';
+    const message = commit.message?.split('\n')[0] || '';
+    return `- ${sha} ${message}`.trimEnd();
+  });
+}
+
 function hasTaskReference(event) {
   if (/^task-\d+$/i.test(CONFIG.refName || '')) return true;
   const text = JSON.stringify(event || {});
-  return /(?:#\d+|task-\d+|close[sd]?\s+#\d+|fix(?:e[sd])?\s+#\d+)/i.test(text);
+  return /(?:#\d+|task-\d+|close[sd]?\s+#\d+|fix(?:e[sd])?\s+#\d+|ref(?:s|erences)?\s+#\d+)/i.test(text);
 }
 
-async function createTrackingIssue(event) {
-  const commits = event?.commits || [];
-  const body = [
+function trackingIssueBody(event) {
+  const commits = summarizeCommits(event);
+  return [
     'Automação de DevOps detectou alteração em branch sem tarefa vinculada.',
     '',
     `Repositório: ${CONFIG.repository}`,
@@ -133,21 +161,54 @@ async function createTrackingIssue(event) {
     `SHA: ${CONFIG.sha}`,
     '',
     'Resumo dos commits:',
-    ...commits.slice(0, 20).map((commit) => `- ${commit.id?.slice(0, 12) || ''} ${commit.message?.split('\n')[0] || ''}`),
+    ...(commits.length ? commits : ['- sem commits detalhados no payload do evento']),
     '',
     'Fluxo obrigatório:',
     '1. Continuar a partir do branch criado pela automação: `task-{id}`.',
     '2. Abrir PR vinculado a esta tarefa.',
     '3. Corrigir a trilha de desenvolvimento antes de retornar ao fluxo normal.',
   ].join('\n');
+}
 
+function trackingUpdateComment(event) {
+  const commits = summarizeCommits(event);
+  return [
+    'Nova alteração detectada nesta mesma trilha sem tarefa vinculada.',
+    '',
+    `SHA mais recente: ${CONFIG.sha}`,
+    '',
+    'Resumo dos commits desta rodada:',
+    ...(commits.length ? commits : ['- sem commits detalhados no payload do evento']),
+    '',
+    'A issue existente foi reaproveitada para evitar duplicação da fila operacional.',
+  ].join('\n');
+}
+
+async function findExistingTrackingIssue() {
+  const params = new URLSearchParams({
+    state: 'open',
+    labels: TRACKING_LABELS.join(','),
+    per_page: '100',
+  });
+  const issues = await rest(`/repos/${CONFIG.repository}/issues?${params.toString()}`);
+  return issues.find((issue) => !issue.pull_request && issue.title === trackingTitle()) || null;
+}
+
+async function createTrackingIssue(event) {
   return rest(`/repos/${CONFIG.repository}/issues`, {
     method: 'POST',
     body: JSON.stringify({
-      title: `DevOps: mudança sem tarefa em ${CONFIG.refName}`,
-      body,
-      labels: ['devops', 'untracked-change'],
+      title: trackingTitle(),
+      body: trackingIssueBody(event),
+      labels: TRACKING_LABELS,
     }),
+  });
+}
+
+async function commentOnTrackingIssue(issueNumber, body) {
+  await rest(`/repos/${CONFIG.repository}/issues/${issueNumber}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
   });
 }
 
@@ -165,6 +226,19 @@ async function createTaskBranch(issueNumber) {
   }
 }
 
+async function ensureTrackingIssue(project, event) {
+  const existing = await findExistingTrackingIssue();
+  if (existing) {
+    await commentOnTrackingIssue(existing.number, trackingUpdateComment(event));
+    return { issue: existing, reused: true };
+  }
+
+  const issue = await createTrackingIssue(event);
+  const itemId = await addIssueToProject(project, issue.node_id);
+  await moveProjectItem(project, itemId, CONFIG.status);
+  return { issue, reused: false };
+}
+
 async function main() {
   if (!CONFIG.repository || !CONFIG.refName || !CONFIG.sha) {
     throw new Error('GITHUB_REPOSITORY, GITHUB_REF_NAME and GITHUB_SHA are required');
@@ -177,26 +251,31 @@ async function main() {
   }
 
   const project = await loadProject();
-  const issue = await createTrackingIssue(event);
-  const itemId = await addIssueToProject(project, issue.node_id);
-  await moveProjectItem(project, itemId, CONFIG.status);
+  const { issue, reused } = await ensureTrackingIssue(project, event);
   const branch = await createTaskBranch(issue.number);
 
-  await rest(`/repos/${CONFIG.repository}/issues/${issue.number}/comments`, {
-    method: 'POST',
-    body: JSON.stringify({
-      body: `Branch de continuidade criado: \`${branch.branch}\`. Todo desenvolvimento subsequente deve sair desse branch e seguir por PR vinculado a esta tarefa.`,
-    }),
-  });
+  if (branch.created || !reused) {
+    await commentOnTrackingIssue(
+      issue.number,
+      `Branch de continuidade criado: \`${branch.branch}\`. Todo desenvolvimento subsequente deve sair desse branch e seguir por PR vinculado a esta tarefa.`
+    );
+  }
 
-  console.log(JSON.stringify({
-    ok: true,
-    issue: issue.html_url,
-    branch: branch.branch,
-    branchCreated: branch.created,
-    project: `${CONFIG.org}/projects/${CONFIG.projectNumber}`,
-    status: CONFIG.status,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        issue: issue.html_url,
+        reused,
+        branch: branch.branch,
+        branchCreated: branch.created,
+        project: `${CONFIG.org}/projects/${CONFIG.projectNumber}`,
+        status: CONFIG.status,
+      },
+      null,
+      2
+    )
+  );
 }
 
 main().catch((error) => {

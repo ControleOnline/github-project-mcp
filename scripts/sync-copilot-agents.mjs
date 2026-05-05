@@ -69,16 +69,6 @@ function parseControleRepoName(remoteUrl) {
   return match ? match[1] : null;
 }
 
-function normalizeRemoteUrl(remoteUrl, repoName) {
-  if (!remoteUrl) {
-    return `https://github.com/${CONTROL_OWNER}/${repoName}.git`;
-  }
-  if (remoteUrl.startsWith("git@github.com:")) {
-    return remoteUrl.replace(/^git@github\.com:/, "https://github.com/");
-  }
-  return remoteUrl;
-}
-
 function parseGitmodules(rootPath) {
   const filePath = path.join(rootPath, ".gitmodules");
   if (!fs.existsSync(filePath)) {
@@ -117,7 +107,7 @@ function detectReviewTarget() {
   return "dev";
 }
 
-function detectDefaultBranch(repoPath, declaredBranch) {
+function detectDefaultBranch() {
   return "master";
 }
 
@@ -214,9 +204,8 @@ function collectEntries() {
       return;
     }
 
-    const resolvedRemote = normalizeRemoteUrl(remoteUrl, repoName);
-    const baseBranch = detectDefaultBranch(existsLocally ? localPath : "", raw.declaredBranch);
-    const reviewTarget = existsLocally ? detectReviewTarget(localPath) : "dev";
+    const baseBranch = detectDefaultBranch();
+    const reviewTarget = detectReviewTarget();
     const hasAgentsMd = existsLocally && fs.existsSync(path.join(localPath, "AGENTS.md"));
     const workspacePath = raw.localRelPath.replace(/\\/g, "/");
     const dedupeKey = workspacePath;

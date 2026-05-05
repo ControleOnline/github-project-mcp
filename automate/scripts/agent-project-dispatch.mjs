@@ -49,12 +49,17 @@ const ALL_AGENT_LABELS = Object.values(ROLE_META).map((entry) => entry.label);
 const DEFAULT_AGENT_LOGIN = 'copilot-swe-agent';
 const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
 const DEFAULT_STALE_AFTER_MINUTES = '30';
+const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
 const RETRY = githubRetryConfig('AGENT');
 const LABEL_META = {
   'agent:developer': { color: '1f6feb', description: 'Task atualmente com o agent Developer' },
   'agent:security': { color: 'd1242f', description: 'Task atualmente com o agent Security' },
   'agent:qa': { color: '8b5cf6', description: 'Task atualmente com o agent QA' },
   'agent:devops': { color: 'fb8c00', description: 'Task atualmente com o agent DevOps' },
+  'ops:copilot-unavailable': {
+    color: 'd4a72c',
+    description: 'Copilot cloud agent nao habilitado no repositorio alvo',
+  },
 };
 
 function env(name, fallback = '') {
@@ -83,6 +88,11 @@ function getRole() {
 
 function getToken() {
   return env('GITHUB_TOKEN') || env('GH_TOKEN');
+}
+
+function isCopilotUnavailableError(error) {
+  const message = error?.message || String(error || '');
+  return message.includes('Copilot agent is not enabled in this repository');
 }
 
 async function githubGraphQL(query, variables = {}, extraHeaders = {}) {
@@ -420,6 +430,18 @@ function buildRecoveryComment(role, issueRef, staleAfterMinutes, updatedAt) {
   ].join('\n');
 }
 
+function buildUnavailableComment(role, issueRef, unsupportedLabel) {
+  const meta = ROLE_META[role];
+  return [
+    `### ${meta.commentHeader} - bloqueio operacional`,
+    '',
+    `Issue: ${issueRef}`,
+    `Bloqueio: o repositório alvo não aceita atribuição do Copilot cloud agent para o papel \`${meta.displayName}\`.`,
+    `Ação: a automação marcou a issue com \`${unsupportedLabel}\` e retirou o label \`${meta.label}\` para evitar looping automático até a habilitação operacional do agent no repositório alvo.`,
+    'Próximo passo: habilitar o Copilot agent neste repositório e depois devolver a task para `Work` ou reaplicar o label do agent correto.',
+  ].join('\n');
+}
+
 async function ensureLabelExists(repoFullName, labelName) {
   const [owner, repo] = repoFullName.split('/');
   const meta = LABEL_META[labelName] || { color: '1f6feb', description: labelName };
@@ -553,19 +575,26 @@ async function main() {
   const model = env('AGENT_COPILOT_MODEL');
   const staleAfterMinutes = parsePositiveNumber(env('AGENT_STALE_AFTER_MINUTES', DEFAULT_STALE_AFTER_MINUTES), 30);
   const redispatchStaleActive = env('AGENT_REDISPATCH_STALE_ACTIVE', 'true').toLowerCase() !== 'false';
+  const unsupportedLabel = env('AGENT_UNSUPPORTED_LABEL', DEFAULT_UNSUPPORTED_LABEL);
 
   const data = await getProjectSnapshot(org, projectNumber);
   const project = data?.organization?.projectV2;
   if (!project) throw new Error(`Project not found: ${org}/projects/${projectNumber}`);
 
   const items = sortByCreatedAt(project.items?.nodes || []);
-  const activeItems = items.filter((item) => isActiveForRole(item, role, knownAgentLogins));
+  const hasUnsupportedLabel = (item) => issueLabels(item.content).includes(unsupportedLabel);
+  const unsupportedItems = items.filter((item) => hasUnsupportedLabel(item));
+  const activeItems = items.filter(
+    (item) => !hasUnsupportedLabel(item) && isActiveForRole(item, role, knownAgentLogins)
+  );
   const staleActiveItems = redispatchStaleActive
     ? activeItems.filter((item) => isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes))
     : [];
   const staleActiveIds = new Set(staleActiveItems.map((item) => item.id));
   const freshActiveItems = activeItems.filter((item) => !staleActiveIds.has(item.id));
-  const candidateItems = items.filter((item) => isEligibleForRole(item, role, workStatus, knownAgentLogins));
+  const candidateItems = items.filter(
+    (item) => !hasUnsupportedLabel(item) && isEligibleForRole(item, role, workStatus, knownAgentLogins)
+  );
   const targetItems = [...staleActiveItems, ...candidateItems];
 
   const result = {
@@ -580,14 +609,17 @@ async function main() {
     },
     workStatus,
     roleLabel: meta.label,
+    unsupportedLabel,
     staleAfterMinutes,
     redispatchStaleActive,
     activeCount: activeItems.length,
     freshActiveCount: freshActiveItems.length,
     staleActiveCount: staleActiveItems.length,
+    unsupportedCount: unsupportedItems.length,
     candidateCount: candidateItems.length,
     activeItems: activeItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
     staleActiveItems: staleActiveItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
+    unsupportedItems: unsupportedItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
     candidateItems: candidateItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
     assignmentAttempts: [],
   };
@@ -634,39 +666,58 @@ async function main() {
 
     const currentLabels = issueLabels(issue);
     const nextLabels = [...new Set([...currentLabels.filter((label) => !ALL_AGENT_LABELS.includes(label)), meta.label])];
+    const blockedLabels = [
+      ...new Set([...currentLabels.filter((label) => !ALL_AGENT_LABELS.includes(label)), unsupportedLabel]),
+    ];
     const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
     const nextActorIds = [...new Set([actor.id, ...preservedHumanActorIds])];
 
     result.selectedItem = targetRecord;
     result.selectedMode = mode;
 
-    if (!dryRun) {
-      await ensureLabelExists(issue.repository.nameWithOwner, meta.label);
-      await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
-      await assignIssueToAgent(
-        issue.id,
-        nextActorIds,
-        issue.repository.id,
-        baseRef,
-        buildAgentInstructions(role, issueRef, issue.number, mode),
-        model
-      );
-      await addIssueComment(
-        issue.id,
-        mode === 'recovery'
-          ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
-          : buildAssignmentComment(role, issueRef)
-      );
-      result.executed = true;
-    } else {
-      result.executed = false;
-      result.previewComment =
-        mode === 'recovery'
-          ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
-          : buildAssignmentComment(role, issueRef);
-      result.previewInstructions = buildAgentInstructions(role, issueRef, issue.number, mode);
-      result.previewLabels = nextLabels;
-      result.previewActorIds = nextActorIds;
+    try {
+      if (!dryRun) {
+        await ensureLabelExists(issue.repository.nameWithOwner, meta.label);
+        await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
+        await assignIssueToAgent(
+          issue.id,
+          nextActorIds,
+          issue.repository.id,
+          baseRef,
+          buildAgentInstructions(role, issueRef, issue.number, mode),
+          model
+        );
+        await addIssueComment(
+          issue.id,
+          mode === 'recovery'
+            ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
+            : buildAssignmentComment(role, issueRef)
+        );
+        result.executed = true;
+      } else {
+        result.executed = false;
+        result.previewComment =
+          mode === 'recovery'
+            ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
+            : buildAssignmentComment(role, issueRef);
+        result.previewInstructions = buildAgentInstructions(role, issueRef, issue.number, mode);
+        result.previewLabels = nextLabels;
+        result.previewActorIds = nextActorIds;
+      }
+    } catch (error) {
+      if (!dryRun && isCopilotUnavailableError(error)) {
+        await ensureLabelExists(issue.repository.nameWithOwner, unsupportedLabel);
+        await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, blockedLabels);
+        await addIssueComment(issue.id, buildUnavailableComment(role, issueRef, unsupportedLabel));
+        result.assignmentAttempts.push({
+          issue: targetRecord.issue,
+          status: 'blocked',
+          reason: `Repositório sem suporte à atribuição do Copilot cloud agent; issue marcada com ${unsupportedLabel}.`,
+          dispatchActorSource: targetRecord.dispatchActorSource,
+        });
+        continue;
+      }
+      throw error;
     }
 
     result.ok = true;

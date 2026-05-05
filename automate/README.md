@@ -11,6 +11,12 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 
 ## Arquivos
 
+- `agents/README.md`: mapa de ownership operacional por agent
+- `agents/developer/dispatch.mjs`: entrada operacional do despacho de `Developer`
+- `agents/qa/dispatch.mjs`: entrada operacional do despacho de `Quality Assurance`
+- `agents/qa/review.mjs`: entrada de compatibilidade para a base executável de revisão de QA
+- `agents/security/dispatch.mjs`: entrada operacional do despacho de `Security`
+- `agents/security/review.mjs`: entrada de compatibilidade para a base executável de revisão de Security
 - `developer/README.md`: política operacional do runner de `Developer`
 - `scripts/agent-flow-sync.mjs`: sincroniza label inicial de `Developer`, conflitos para `DevOps` e limpeza final
 - `quality-assurance.md`: política central de QA
@@ -20,9 +26,9 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 - `pull-request-review.md`: critérios de `APPROVE` ou `REQUEST_CHANGES` em QA
 - `security-pull-request-review.md`: critérios de review em Security
 - `staging-merge.md`: regra de merge obrigatório em `staging`
-- `scripts/developer-project-dispatch.mjs`: despacha uma task parada em `Work` para o agent `Developer`
-- `scripts/qa-project-review.mjs`: esqueleto executável da revisão de QA
-- `scripts/security-project-review.mjs`: coletor de contexto e executor do fluxo de Security
+- `scripts/developer-project-dispatch.mjs`: entrada legada do despacho de `Developer`
+- `scripts/qa-project-review.mjs`: entrada legada da revisão de QA
+- `scripts/security-project-review.mjs`: entrada legada da revisão de Security
 - `workflows/developer-project-dispatch.yml`: workflow base para `Developer`
 - `workflows/qa-project-review.yml`: workflow base para QA
 - `workflows/security-project-review.yml`: workflow base para Security
@@ -117,6 +123,8 @@ Esta base está apontada para:
 ## Observações
 
 - GraphQL continua sendo o caminho preferencial para leitura e escrita do ProjectV2.
+- O runner operacional deve preferir os pontos de entrada em `automate/agents/<agent>/`.
+- Os arquivos em `automate/scripts/` permanecem como compatibilidade e base compartilhada.
 - O agente de Developer entra pela coluna `Work`, mas a execução real passa a ser controlada pela atribuição ao agent.
 - Task nova em `Work` sem `agent:*` entra por padrão em `Developer`.
 - O agente de QA decide entre `Developer`, `Security` e `DevOps`.

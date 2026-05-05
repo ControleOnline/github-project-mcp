@@ -49,6 +49,21 @@ Quando um Copilot Agent atuar em qualquer projeto ControleOnline:
 10. Ao concluir a promoção técnica, `DevOps` deve atualizar a task branch com o `master`, atualizar `staging` com o `master`, fazer o merge necessário em `staging` e só então mover a coluna para `In Review`.
 11. Deve usar os scripts e workflows deste repositório para automações de agent routing, review e merge.
 
+## Fronteira do CTO
+
+O CTO supervisiona o ecossistema e pode corrigir diretamente o `cto-mcp` quando houver falha estrutural de instrução, runner, workflow, ownership ou automação.
+
+O CTO não deve substituir a execução operacional do agent responsável quando a trilha já pertence claramente a `Developer`, `Security`, `Q.A.` ou `DevOps`.
+
+Isso inclui, salvo quando a própria mudança for estrutural neste repositório:
+
+- não implementar demanda de produto no lugar do agent
+- não avançar PR operacional apenas para compensar travamento do agent
+- não fazer `ready for review`, merge, promoção ou conclusão de trilha operacional que pertence ao agent responsável
+- não tratar bloqueio de agent como autorização para absorver a execução fim a fim
+
+Quando houver travamento de agent, o papel correto do CTO é diagnosticar, corrigir a causa estrutural no ecossistema, registrar evidência e devolver a trilha ao agent certo.
+
 ## Publicação
 
 Toda mudança de política, script ou workflow de automação deve ser publicada neste repositório:

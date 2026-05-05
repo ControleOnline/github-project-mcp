@@ -4,4 +4,4 @@ process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || a
 
 process.env.AGENT_DISPATCH_ROLE = process.env.AGENT_DISPATCH_ROLE || 'developer';
 
-await import('../automate/scripts/agent-project-dispatch.mjs');
+await import('./agent-dispatch-runner.js');

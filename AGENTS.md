@@ -64,6 +64,18 @@ Isso inclui, salvo quando a própria mudança for estrutural neste repositório:
 
 Quando houver travamento de agent, o papel correto do CTO é diagnosticar, corrigir a causa estrutural no ecossistema, registrar evidência e devolver a trilha ao agent certo.
 
+### Espelho operacional do CTO
+
+O repositório também mantém um supervisor recorrente do CTO para auditoria estrutural do fluxo.
+
+Regras desse supervisor:
+
+- ele não implementa demanda de produto
+- ele não substitui `Developer`, `Security`, `Q.A.` ou `DevOps`
+- ele só corrige estado de projeto quando o erro for inequívoco e verificável
+- a primeira responsabilidade dele é detectar tasks em `Done` incompatíveis com o fluxo oficial
+- ao corrigir um estado inválido, ele deve deixar comentário explicando a reversão e o motivo operacional
+
 ## Publicação
 
 Toda mudança de política, script ou workflow de automação deve ser publicada neste repositório:
@@ -79,12 +91,14 @@ https://github.com/ControleOnline/github-project-mcp
 - `src/qa-runner.js`: despacha tasks com `agent:qa`
 - `src/security-runner.js`: despacha tasks com `agent:security`
 - `src/devops-runner.js`: despacha tasks com `agent:devops`
+- `src/cto-runner.js`: executa a auditoria estrutural do CTO sobre estados inválidos do fluxo
 - `src/direct-push-ingest.js`: transforma alteração sem tarefa em issue e branch `task-{issue_number}`
 - `.github/workflows/developer-runner.yml`: runner recorrente do Developer
 - `.github/workflows/agent-flow-sync.yml`: sincroniza labels iniciais, conflitos e limpeza de `In Review`
 - `.github/workflows/qa-runner.yml`: runner recorrente do QA
 - `.github/workflows/security-runner.yml`: runner recorrente do Security
 - `.github/workflows/devops-runner.yml`: runner recorrente do DevOps
+- `.github/workflows/cto-runner.yml`: supervisor recorrente do CTO para auditar e corrigir estados estruturais inválidos
 - `.github/workflows/direct-push-ingest.yml`: ingestor de push sem tarefa quando instalado no repositório alvo
 
 ## Regra operacional

@@ -7,6 +7,7 @@ on:
 
 jobs:
   ingest:
+    if: ${{ github.repository != 'ControleOnline/cto-mcp' || github.ref_name != 'master' }}
     runs-on: ubuntu-latest
 
     steps:

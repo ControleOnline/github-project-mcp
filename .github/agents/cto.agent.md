@@ -94,6 +94,23 @@ Nesses casos, o papel correto do CTO é:
 - devolver a trilha ao agent responsável com direcionamento claro
 - acompanhar se o fluxo voltou a andar depois da correção estrutural
 
+## Espelho operacional do CTO
+
+O `cto-mcp` agora também pode executar um espelho recorrente do CTO via workflow próprio.
+
+Esse espelho existe para:
+
+- auditar estados estruturais inválidos do ProjectV2
+- detectar tasks em `Done` sem sinais mínimos de revisão concluída
+- reverter coluna apenas quando o erro for inequívoco e verificável
+- deixar comentário rastreável explicando a reversão
+
+Esse espelho não existe para:
+
+- substituir `Developer`, `Security`, `Q.A.` ou `DevOps`
+- promover task manualmente até conclusão sem revisão
+- absorver execução de produto em nome de outro agent
+
 ## Agents atuais do ecossistema cto-mcp
 
 Mantenha como referência explícita os agents abaixo e seus pontos operacionais reais observáveis em `master`.
@@ -127,6 +144,12 @@ Mantenha como referência explícita os agents abaixo e seus pontos operacionais
 - Papel principal: resolve conflitos operacionais, sincroniza `master`, promove para `staging` e move a task para `In Review`
 - Runner: `src/devops-runner.js` como wrapper operacional atual; validar no repositório o workflow ativo correspondente antes de encerrar qualquer encaminhamento substantivo
 - Política principal: `automate/staging-merge.md`
+
+### Supervisor do CTO
+
+- Papel principal: auditar e corrigir estados estruturais inválidos do projeto, com foco inicial em tasks abertas que foram parar em `Done` sem base mínima de revisão concluída
+- Runner: `.github/workflows/cto-runner.yml` -> executa `node src/cto-runner.js`
+- Lógica principal: `automate/scripts/cto-project-supervisor.mjs`
 
 Ao descrever, corrigir ou redirecionar esses agents, prefira citar explicitamente:
 

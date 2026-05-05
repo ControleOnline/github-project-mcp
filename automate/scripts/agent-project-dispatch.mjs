@@ -297,6 +297,23 @@ function getAssignableActor(issue, preferredAgentLogin) {
   );
 }
 
+function getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin) {
+  const assignees = issue.assignees?.nodes || [];
+  const preferred = assignees.find(
+    (assignee) => assignee?.id && (assignee?.login || '').trim().toLowerCase() === preferredAgentLogin
+  );
+  if (preferred) return preferred;
+
+  return assignees.find((assignee) => {
+    const login = (assignee?.login || '').trim().toLowerCase();
+    return assignee?.id && knownAgentLogins.has(login);
+  });
+}
+
+function getDispatchActor(issue, knownAgentLogins, preferredAgentLogin) {
+  return getAssignableActor(issue, preferredAgentLogin) || getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin);
+}
+
 function sortByCreatedAt(items) {
   return [...items].sort((left, right) => {
     const leftTs = Date.parse(left.content?.createdAt || '') || 0;
@@ -480,7 +497,9 @@ async function addIssueComment(issueId, body) {
 
 function serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes = null) {
   const issue = item.content;
-  const actor = getAssignableActor(issue, preferredAgentLogin);
+  const suggestedActor = getAssignableActor(issue, preferredAgentLogin);
+  const assignedAgentActor = getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin);
+  const actor = suggestedActor || assignedAgentActor;
   const ageMinutes = minutesSince(issue.updatedAt);
   return {
     issue: {
@@ -498,10 +517,14 @@ function serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMi
     labels: issueLabels(issue),
     currentAgentLabel: currentAgentLabel(issue),
     assignees: assigneeLogins(issue),
+    suggestedActors: (issue.repository?.suggestedActors?.nodes || [])
+      .map((candidate) => candidate?.login)
+      .filter(Boolean),
     hasAgentAssignee: hasAgentAssignee(issue, knownAgentLogins),
     hasHumanAssignee: hasHumanAssignee(issue, knownAgentLogins),
     hasHumanOnlyAssignee: hasHumanOnlyAssignee(issue, knownAgentLogins),
     canAssignPreferredAgent: Boolean(actor?.id),
+    dispatchActorSource: suggestedActor ? 'suggestedActors' : assignedAgentActor ? 'currentAgentAssignee' : null,
     staleAfterMinutes,
     isStale: staleAfterMinutes ? ageMinutes !== null && ageMinutes >= staleAfterMinutes : null,
   };
@@ -594,7 +617,7 @@ async function main() {
   for (const target of targetItems) {
     const issue = target.content;
     const issueRef = `${issue.repository.nameWithOwner}#${issue.number}`;
-    const actor = getAssignableActor(issue, preferredAgentLogin);
+    const actor = getDispatchActor(issue, knownAgentLogins, preferredAgentLogin);
     const targetRecord = serializeItem(target, knownAgentLogins, preferredAgentLogin, staleAfterMinutes);
     const mode = staleActiveIds.has(target.id) ? 'recovery' : 'dispatch';
 
@@ -602,7 +625,9 @@ async function main() {
       result.assignmentAttempts.push({
         issue: targetRecord.issue,
         status: 'skipped',
-        reason: `O agent ${preferredAgentLogin} não apareceu em suggestedActors para ${issue.repository.nameWithOwner}.`,
+        reason: `O agent ${preferredAgentLogin} não apareceu em suggestedActors nem como assignee atual de agent para ${issue.repository.nameWithOwner}.`,
+        suggestedActors: targetRecord.suggestedActors,
+        assignees: targetRecord.assignees,
       });
       continue;
     }
@@ -646,8 +671,9 @@ async function main() {
 
     result.ok = true;
     result.assignedIssue = issueRef;
-    result.assignedAgent = preferredAgentLogin;
+    result.assignedAgent = actor.login || preferredAgentLogin;
     result.baseRef = baseRef;
+    result.dispatchActorSource = targetRecord.dispatchActorSource;
     result.assignmentAttempts.push({
       issue: targetRecord.issue,
       status: dryRun ? 'preview' : mode === 'recovery' ? 'redispatched' : 'assigned',
@@ -655,6 +681,7 @@ async function main() {
         mode === 'recovery'
           ? 'Primeira execução travada e atribuível encontrada para retomada automática.'
           : 'Primeira task elegível e atribuível encontrada.',
+      dispatchActorSource: targetRecord.dispatchActorSource,
     });
 
     const outPath = writeOutputFile(result);
@@ -666,7 +693,8 @@ async function main() {
           role,
           mode,
           assignedIssue: issueRef,
-          assignedAgent: preferredAgentLogin,
+          assignedAgent: actor.login || preferredAgentLogin,
+          dispatchActorSource: targetRecord.dispatchActorSource,
           outPath,
         },
         null,

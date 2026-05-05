@@ -61,16 +61,19 @@ Os agents são disparados por GitHub Actions e usam o GitHub como fonte de verda
 
 Fluxo esperado:
 
-1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não esteja exclusivamente com pessoas e não exista outra execução ativa do próprio `Developer`.
-2. Task aberta em `Work` sem `agent:*` pertence inicialmente a `Developer`.
-3. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
-4. Confirmar qual é o agente responsável atual da tarefa.
-5. Aplicar a política correspondente em `automation/` e `automate/`.
-6. Registrar comentário rastreável.
-7. Revisar PR quando aplicável.
-8. Mudar o agente responsável para o próximo passo correto.
-9. Se houver PR com conflito de merge, a responsabilidade operacional passa para `DevOps`.
-10. Só usar coluna para o passo final de `DevOps` -> `In Review`.
+1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não esteja exclusivamente com pessoas e não exista outra execução ativa recente do próprio `Developer`.
+2. Se existir uma issue ainda aberta com `agent:developer`, assignee de agent e sem atualização recente, o dispatcher tenta retomar essa execução antes de capturar uma task nova.
+3. Task aberta em `Work` sem `agent:*` pertence inicialmente a `Developer`.
+4. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
+5. Confirmar qual é o agente responsável atual da tarefa.
+6. Aplicar a política correspondente em `automation/` e `automate/`.
+7. Registrar comentário rastreável.
+8. Revisar PR quando aplicável.
+9. Mudar o agente responsável para o próximo passo correto.
+10. Se houver PR com conflito de merge, a responsabilidade operacional passa para `DevOps`.
+11. Só usar coluna para o passo final de `DevOps` -> `In Review`.
+
+A retomada automática evita lock indefinido da fila do `Developer` quando uma execução antiga fica parada ou quando a issue é devolvida manualmente sem limpeza operacional completa.
 
 ## Credenciais e secrets
 
@@ -99,7 +102,12 @@ DEVELOPER_AGENT_LOGINS=copilot-swe-agent
 DEVELOPER_COPILOT_BASE_REF=master
 DEVELOPER_COPILOT_MODEL=
 DEVELOPER_OUTPUT_DIR=./.developer-output
+AGENT_REDISPATCH_STALE_ACTIVE=true
+AGENT_STALE_AFTER_MINUTES=30
 ```
+
+- `AGENT_REDISPATCH_STALE_ACTIVE=true`: permite priorizar a retomada automatica de execucoes travadas do `Developer`.
+- `AGENT_STALE_AFTER_MINUTES=30`: define em quantos minutos sem atualizacao uma issue ativa passa a ser tratada como travada para redispatch.
 
 ### QA
 
@@ -151,6 +159,8 @@ WORKFLOW_RETRY_MAX_DELAY_MS=20000
 
 Execute os scripts Node em `automate/scripts/` com `GITHUB_TOKEN` ou `GH_TOKEN`. Nos runners do GitHub Actions, `GH_TOKEN` deve ser preferido para atribuição do Copilot agent e o GitHub App fica como fallback.
 
+Quando precisar validar o comportamento de redispatch do `Developer`, ajuste `AGENT_REDISPATCH_STALE_ACTIVE` e `AGENT_STALE_AFTER_MINUTES` no ambiente antes de rodar o dispatcher localmente.
+
 ## Copilot cloud agent no Security
 
 Quando `SECURITY_USE_COPILOT=true`, o fluxo de Security tenta acionar o Copilot cloud agent nas issues que ainda não têm decisão estruturada do analista. A automação atribui a issue ao `copilot-swe-agent[bot]` com `agent_assignment`, define o repositório alvo, usa `SECURITY_COPILOT_BASE_REF` como branch base e envia instruções de revisão de segurança.
@@ -171,6 +181,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - o label `agent:*` é a associação oficial do agent responsável atual
 - task aberta em `Work` sem `agent:*` entra por padrão em `Developer`
 - `Developer` não deve capturar tasks em `Work` que estejam exclusivamente atribuídas a pessoas.
+- issue aberta com `agent:developer` e assignee de agent so deve bloquear a fila enquanto houver atividade recente; acima do limite configurado, a automação tenta retomar a execucao.
 - conflito de merge em PR aberto deve ir para `DevOps`
 - falhas transitórias de GitHub, rede e autenticação devem usar retry automático antes de falhar a rodada
 - Cada agent só pode concluir a task repassando para um próximo agent válido, ou para `In Review` no caso do DevOps.

@@ -108,8 +108,18 @@ function outputPathForRole(role) {
   return path.join(outDir, `agent-project-dispatch-${role}.json`);
 }
 
-function runDispatchScript() {
-  const scriptPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../automate/scripts/agent-project-dispatch.mjs');
+function dispatchScriptPathForRole(role) {
+  const relativePath = {
+    developer: '../automate/agents/developer/dispatch.mjs',
+    qa: '../automate/agents/qa/dispatch.mjs',
+    security: '../automate/agents/security/dispatch.mjs',
+  }[role] || '../automate/scripts/agent-project-dispatch.mjs';
+
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), relativePath);
+}
+
+function runDispatchScript(role) {
+  const scriptPath = dispatchScriptPathForRole(role);
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [scriptPath], {
       stdio: 'inherit',
@@ -182,7 +192,7 @@ async function main() {
   const role = env('AGENT_DISPATCH_ROLE');
   if (!role) throw new Error('AGENT_DISPATCH_ROLE is required');
 
-  const runResult = await runDispatchScript();
+  const runResult = await runDispatchScript(role);
   if (runResult.code !== 0) {
     process.exit(runResult.code);
   }

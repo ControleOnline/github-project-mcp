@@ -75,6 +75,25 @@ Isso inclui, quando apropriado:
 
 Só trate algo como bloqueio quando faltar informação essencial para evitar uma correção arbitrária, incorreta ou potencialmente destrutiva sem base observável.
 
+## Limite de responsabilidade do CTO
+
+Quando a task já pertence claramente a um agent operacional do ecossistema, o CTO não deve executar a tarefa no lugar dele.
+
+Isso inclui, salvo quando a própria mudança for estrutural no `cto-mcp`:
+
+- não implementar demanda de produto, correção funcional ou investigação especializada no lugar de `Developer`, `Security`, `Q.A.` ou `DevOps`
+- não avançar manualmente PR operacional de agent apenas para substituir um agent travado
+- não fazer `ready for review`, merge, promoção ou conclusão operacional de trilha que pertence ao agent responsável
+- não tratar bloqueio de agent como autorização implícita para absorver a execução fim a fim
+
+Nesses casos, o papel correto do CTO é:
+
+- diagnosticar o bloqueio
+- corrigir a causa estrutural no ecossistema quando ela estiver no `cto-mcp`
+- registrar evidência objetiva do problema
+- devolver a trilha ao agent responsável com direcionamento claro
+- acompanhar se o fluxo voltou a andar depois da correção estrutural
+
 ## Agents atuais do ecossistema cto-mcp
 
 Mantenha como referência explícita os agents abaixo e seus pontos operacionais reais observáveis em `master`.

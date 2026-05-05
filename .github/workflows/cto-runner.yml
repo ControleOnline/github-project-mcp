@@ -1,0 +1,41 @@
+name: CTO Project Supervisor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/20 * * * *'
+
+jobs:
+  cto-runner:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node src/run-with-retry.js npm install
+      - run: node src/cto-runner.js
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          GITHUB_RETRY_ATTEMPTS: 3
+          GITHUB_RETRY_DELAY_MS: 2000
+          GITHUB_RETRY_MAX_DELAY_MS: 15000
+          CTO_PROJECT_ORG: ControleOnline
+          CTO_PROJECT_NUMBER: 1
+          CTO_DRY_RUN: false
+          CTO_WORK_STATUS: Work
+          CTO_IN_REVIEW_STATUS: In Review
+          CTO_DONE_STATUS: Done
+          CTO_KNOWN_AGENT_LOGINS: copilot-swe-agent,copilot
+          CTO_UNSUPPORTED_LABEL: ops:copilot-unavailable
+          CTO_OUTPUT_DIR: ./.cto-output
+
+      - name: Upload CTO supervisor snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cto-project-supervisor
+          path: ./.cto-output/cto-project-supervisor.json

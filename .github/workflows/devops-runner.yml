@@ -1,4 +1,4 @@
-name: Security Project Runner
+name: DevOps Project Runner
 
 on:
   workflow_dispatch:
@@ -6,16 +6,16 @@ on:
     - cron: '*/15 * * * *'
 
 jobs:
-  security-runner:
+  devops-runner:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: node src/run-with-retry.js npm install
-      - run: node src/security-runner.js
+      - run: node src/devops-runner.js
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           APP_ID: ${{ secrets.APP_ID }}
@@ -24,7 +24,7 @@ jobs:
           GITHUB_RETRY_ATTEMPTS: 3
           GITHUB_RETRY_DELAY_MS: 2000
           GITHUB_RETRY_MAX_DELAY_MS: 15000
-          AGENT_DISPATCH_ROLE: security
+          AGENT_DISPATCH_ROLE: devops
           AGENT_PROJECT_ORG: ControleOnline
           AGENT_PROJECT_NUMBER: 1
           AGENT_DRY_RUN: false
@@ -33,10 +33,10 @@ jobs:
           AGENT_KNOWN_LOGINS: copilot-swe-agent,copilot
           AGENT_COPILOT_BASE_REF: master
           AGENT_COPILOT_MODEL: ''
-          AGENT_OUTPUT_DIR: ./.security-output
+          AGENT_OUTPUT_DIR: ./.devops-output
 
-      - name: Upload security snapshot artifact
+      - name: Upload DevOps snapshot artifact
         uses: actions/upload-artifact@v4
         with:
-          name: security-project-dispatch
-          path: ./.security-output/agent-project-dispatch-security.json
+          name: devops-project-dispatch
+          path: ./.devops-output/agent-project-dispatch-devops.json

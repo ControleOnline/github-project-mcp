@@ -73,19 +73,27 @@ Arquivo principal de lógica em `automate`
 
 Developer
 
-Capturar a próxima task elegível em `Work`, respeitar ownership humano, atribuir o agent correto e iniciar a execução operacional
+Ser a porta de entrada de tasks novas em `Work`, respeitar ownership humano, atribuir o agent correto e iniciar a execução operacional
 
 `.github/workflows/developer-runner.yml` -> executa `node src/developer-runner.js`
 
 `automate/scripts/developer-project-dispatch.mjs`
 
+Sincronizador de fluxo
+
+Semear `agent:developer` em tasks novas sem label, redirecionar conflito de merge para `DevOps` e limpar `agent:*` ao chegar em `In Review`
+
+`.github/workflows/agent-flow-sync.yml` -> executa `node src/agent-flow-sync-runner.js`
+
+`automate/scripts/agent-flow-sync.mjs`
+
 Q.A.
 
-Avaliar itens em Quality Assurance, checar PRs, checks e dependência de aprovação de segurança, e decidir encaminhamento entre Developer, Security e Staging
+Avaliar itens de `agent:qa`, checar PRs, checks e dependência de aprovação de segurança, e decidir encaminhamento entre Developer, Security e DevOps
+	
+`.github/workflows/qa-runner.yml` -> executa `node src/qa-runner.js`
 
-`.github/workflows/qa-runner.yml` -> executa `node src/index.js`
-
-`automate/scripts/qa-project-review.mjs`
+`automate/scripts/agent-project-dispatch.mjs`
 
 Analista de Segurança
 

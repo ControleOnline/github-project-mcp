@@ -110,6 +110,9 @@ async function githubGraphQL(query, variables = {}, extraHeaders = {}) {
 async function getProjectSnapshot(org, projectNumber) {
   return githubGraphQL(
     `query($org:String!, $projectNumber:Int!) {
+      viewer {
+        login
+      }
       organization(login:$org) {
         projectV2(number:$projectNumber) {
           id
@@ -509,7 +512,7 @@ function buildIssueComment(issueRef, decision) {
   return lines.join('\n');
 }
 
-async function addIssueComment(issueId, body) {
+async function addComment(subjectId, body) {
   return githubGraphQL(
     `mutation($subjectId:ID!, $body:String!) {
       addComment(input:{subjectId:$subjectId, body:$body}) {
@@ -520,7 +523,7 @@ async function addIssueComment(issueId, body) {
         }
       }
     }`,
-    { subjectId: issueId, body }
+    { subjectId, body }
   );
 }
 
@@ -536,6 +539,22 @@ async function addPullRequestReview(pullRequestId, event, body) {
     }`,
     { pullRequestId, event, body }
   );
+}
+
+function isSelfAuthoredPullRequest(pr, viewerLogin) {
+  return Boolean(
+    viewerLogin &&
+    pr.author?.login &&
+    pr.author.login.toLowerCase() === viewerLogin
+  );
+}
+
+function buildSelfReviewFallbackComment(body, viewerLogin) {
+  return [
+    body,
+    '',
+    `Observacao operacional: review formal nao foi enviado porque a credencial ativa \`${viewerLogin}\` tambem e autora deste PR.`
+  ].join('\n');
 }
 
 async function updateProjectItemStatus(projectId, itemId, fieldId, optionId) {
@@ -577,6 +596,7 @@ async function main() {
   const copilotModel = env('SECURITY_COPILOT_MODEL');
 
   const data = await getProjectSnapshot(org, projectNumber);
+  const viewerLogin = (data.viewer?.login || '').trim().toLowerCase();
   const project = data.organization.projectV2;
   const statusField = getStatusField(project);
   if (!statusField) throw new Error('Status field not found in ProjectV2');
@@ -627,6 +647,7 @@ async function main() {
       id: pr.id,
       ref: `${pr.repository.nameWithOwner}#${pr.number}`,
       url: pr.url,
+      author: pr.author?.login || null,
       state: pr.state,
       isDraft: pr.isDraft,
       reviewDecision: pr.reviewDecision,
@@ -654,11 +675,18 @@ async function main() {
     };
 
     if (!dryRun && decision.projectTarget !== SOURCE_STATUS) {
-      await addIssueComment(issue.id, issueComment);
+      await addComment(issue.id, issueComment);
 
       for (const pr of prs) {
         if (decision.prReviewAction) {
-          await addPullRequestReview(pr.id, decision.prReviewAction, issueComment);
+          if (isSelfAuthoredPullRequest(pr, viewerLogin)) {
+            await addComment(
+              pr.id,
+              buildSelfReviewFallbackComment(issueComment, viewerLogin)
+            );
+          } else {
+            await addPullRequestReview(pr.id, decision.prReviewAction, issueComment);
+          }
         }
       }
 
@@ -672,7 +700,7 @@ async function main() {
     }
 
     if (!dryRun && !activityLogged && copilotTriggered) {
-      await addIssueComment(issue.id, issueComment);
+      await addComment(issue.id, issueComment);
       decisionRecord.activityLogged = true;
     }
 

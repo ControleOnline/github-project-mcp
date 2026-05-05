@@ -152,6 +152,10 @@ function hasHumanAssignee(issue, agentLogins) {
   return assigneeLogins(issue).some((login) => !agentLogins.has(login));
 }
 
+function hasHumanOnlyAssignee(issue, agentLogins) {
+  return hasHumanAssignee(issue, agentLogins) && !hasAgentAssignee(issue, agentLogins);
+}
+
 function getAssignableActor(issue, preferredAgentLogin) {
   return (issue.repository?.suggestedActors?.nodes || []).find(
     (actor) => actor?.login?.toLowerCase() === preferredAgentLogin
@@ -183,7 +187,7 @@ function buildAssignmentComment(issueRef) {
     '',
     `Issue: ${issueRef}`,
     'Origem: coluna `Work` do ProjectV2',
-    'Critério: task parada, sem responsável humano e sem outra execução ativa do Developer em `Work`.',
+    'Critério: task parada, sem ownership exclusivamente humano e sem outra execução ativa do Developer em `Work`.',
     'Ação: o runner atribuiu o agent `Developer` para iniciar a execução.',
   ].join('\n');
 }
@@ -256,6 +260,7 @@ function serializeItem(item, agentLogins, preferredAgentLogin) {
     assignees,
     hasAgentAssignee: hasAgentAssignee(issue, agentLogins),
     hasHumanAssignee: hasHumanAssignee(issue, agentLogins),
+    hasHumanOnlyAssignee: hasHumanOnlyAssignee(issue, agentLogins),
     canAssignPreferredAgent: Boolean(actor?.id),
   };
 }
@@ -289,10 +294,10 @@ async function main() {
     if (!hasAgentAssignee(item.content, agentLogins)) return false;
     return !hasHumanAssignee(item.content, agentLogins);
   });
-  const humanOwnedItems = workItems.filter((item) => hasHumanAssignee(item.content, agentLogins));
+  const humanOwnedItems = workItems.filter((item) => hasHumanOnlyAssignee(item.content, agentLogins));
   const candidateItems = workItems.filter((item) => {
     if (hasAgentAssignee(item.content, agentLogins)) return false;
-    if (hasHumanAssignee(item.content, agentLogins)) return false;
+    if (hasHumanOnlyAssignee(item.content, agentLogins)) return false;
     return true;
   });
 

@@ -1,5 +1,7 @@
 import { getAuthToken } from './github-app-auth.js';
 
-process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || await getAuthToken();
+process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || await getAuthToken();
 
-await import('../automate/scripts/developer-project-dispatch.mjs');
+process.env.AGENT_DISPATCH_ROLE = process.env.AGENT_DISPATCH_ROLE || 'developer';
+
+await import('../automate/scripts/agent-project-dispatch.mjs');

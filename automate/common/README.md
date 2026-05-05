@@ -4,7 +4,9 @@ Diretrizes compartilhadas por todos os agentes do projeto.
 
 ## Fonte de verdade
 
-A fonte de verdade do fluxo é a associação explícita do agente responsável pela task. Label, comentário, título de issue, texto de PR ou coluna intermediária não substituem essa associação real.
+A fonte de verdade do fluxo é o label exclusivo `agent:*` da task.
+
+O assignee `Copilot` indica execução ativa, mas não substitui o label do papel atual.
 
 A coluna só volta a ser obrigatória no passo final de `DevOps`, quando a entrega for movida para `In Review`.
 
@@ -12,7 +14,7 @@ A coluna só volta a ser obrigatória no passo final de `DevOps`, quando a entre
 
 Todo agente deve:
 
-1. ler a associação real do agente responsável por GraphQL ou outro mecanismo oficial configurado
+1. ler o label `agent:*` atual por GraphQL ou outro mecanismo oficial configurado
 2. decidir com base na política do agente em `automate/agents/<agent>/`
 3. registrar evidência na issue ou PR
 4. repassar a task para o próximo agente responsável quando concluir sua etapa

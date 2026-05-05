@@ -17,6 +17,8 @@ Ao iniciar uma revisão:
 
 O agent `qa` revisa entregas recebidas de `Security`, valida evidências técnicas e decide entre `Developer`, `Security` e `DevOps`.
 
+Quando houver conflito de merge em PR aberto, a responsabilidade operacional vai para `DevOps`, mesmo que a revisão funcional ainda precise voltar depois.
+
 ## Visão do sistema
 
 Este agent conhece o sistema inteiro da `ControleOnline`, por completo.
@@ -30,3 +32,5 @@ Ele deve revisar cada entrega com visão de sistema, considerando dependências,
 - não aprove entrega por aproximação textual
 - não promova para `DevOps` sem trilha técnica completa
 - trate composições cross-repo de forma explícita
+- não deixe conflito de merge parado em `QA`; encaminhe para `DevOps`
+- não publique review formal em PR cuja autoria coincida com a credencial ativa; nesse caso, deixe comentário rastreável e siga a decisão real da task

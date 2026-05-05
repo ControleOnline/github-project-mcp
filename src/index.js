@@ -10,6 +10,7 @@ const CONFIG = {
   limit: Number(process.env.QA_TASK_LIMIT || 5),
   developerStatus: process.env.QA_DEVELOPER_STATUS || 'Developer',
   securityStatus: process.env.QA_SECURITY_STATUS || 'Security',
+  devopsStatus: process.env.QA_DEVOPS_STATUS || 'DevOps',
   approvedStatus: process.env.QA_APPROVED_STATUS || 'Staging',
   merge: (process.env.QA_AUTO_MERGE || 'true').toLowerCase() === 'true',
 };
@@ -134,6 +135,10 @@ async function pullRequest(repo, number) {
   return rest(`/repos/${repo}/pulls/${number}`);
 }
 
+async function viewer() {
+  return rest('/user');
+}
+
 async function pullFiles(repo, number) {
   return rest(`/repos/${repo}/pulls/${number}/files?per_page=100`);
 }
@@ -184,7 +189,7 @@ async function mergePr(repo, pr) {
 
 function decisionFor(pr, files, status) {
   if (pr.draft) return { status: CONFIG.developerStatus, event: 'REQUEST_CHANGES', reason: 'PR is still draft.' };
-  if (pr.mergeable === false) return { status: CONFIG.developerStatus, event: 'REQUEST_CHANGES', reason: 'PR has merge conflicts.' };
+  if (pr.mergeable === false) return { status: CONFIG.devopsStatus, event: 'REQUEST_CHANGES', reason: 'PR has merge conflicts.' };
   if (!status.ok) return { status: CONFIG.developerStatus, event: 'REQUEST_CHANGES', reason: 'Required status checks are not green.' };
   if (needsSecurity(files)) return { status: CONFIG.securityStatus, event: 'COMMENT', reason: 'Changes touch security-sensitive paths.' };
   return { status: CONFIG.approvedStatus, event: 'APPROVE', reason: 'PR is mergeable and checks are green.' };
@@ -192,6 +197,8 @@ function decisionFor(pr, files, status) {
 
 async function processItem(project, item) {
   const content = item.content;
+  const currentViewer = await viewer();
+  const viewerLogin = (currentViewer?.login || '').trim().toLowerCase();
   const prs = await findPullRequestsForIssue(content);
   if (prs.length === 0) {
     const movedTo = await moveItem(project, item, CONFIG.developerStatus);
@@ -211,9 +218,26 @@ async function processItem(project, item) {
       `Arquivos alterados: ${files.length}`,
     ].join('\n');
 
-    if (decision.event === 'APPROVE') await review(ref.repo, ref.number, 'APPROVE', body, pr.head.sha);
-    if (decision.event === 'REQUEST_CHANGES') await review(ref.repo, ref.number, 'REQUEST_CHANGES', body, pr.head.sha);
-    if (decision.event === 'COMMENT') await commentIssue(ref.repo, ref.number, body);
+    const isSelfAuthoredPr =
+      viewerLogin &&
+      pr.user?.login &&
+      pr.user.login.toLowerCase() === viewerLogin;
+
+    if (decision.event === 'APPROVE' && !isSelfAuthoredPr) {
+      await review(ref.repo, ref.number, 'APPROVE', body, pr.head.sha);
+    }
+    if (decision.event === 'REQUEST_CHANGES' && !isSelfAuthoredPr) {
+      await review(ref.repo, ref.number, 'REQUEST_CHANGES', body, pr.head.sha);
+    }
+    if (
+      decision.event === 'COMMENT' ||
+      ((decision.event === 'APPROVE' || decision.event === 'REQUEST_CHANGES') && isSelfAuthoredPr)
+    ) {
+      const commentBody = isSelfAuthoredPr
+        ? `${body}\n\nObservação operacional: review formal não foi enviado porque a credencial ativa também é autora deste PR.`
+        : body;
+      await commentIssue(ref.repo, ref.number, commentBody);
+    }
 
     const movedTo = await moveItem(project, item, decision.status);
     let merge = null;

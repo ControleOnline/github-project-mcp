@@ -1,7 +1,15 @@
 import fs from 'node:fs';
+import {
+  githubRetryConfig,
+  isRetriableGraphQLErrors,
+  isRetriableStatus,
+  retryAsync,
+  retryableError,
+} from './retry.js';
 
 const GRAPHQL_API = 'https://api.github.com/graphql';
 const REST_API = 'https://api.github.com';
+const RETRY = githubRetryConfig('INGEST');
 
 const CONFIG = {
   org: process.env.QA_PROJECT_ORG || process.env.PROJECT_ORG || 'ControleOnline',
@@ -23,6 +31,9 @@ const CONFIG = {
   autoAssignDeveloper: (process.env.DIRECT_PUSH_ASSIGN_DEVELOPER || 'true').toLowerCase() === 'true',
 };
 
+const DEVELOPER_LABEL = 'agent:developer';
+const ALL_AGENT_LABELS = ['agent:developer', 'agent:security', 'agent:qa', 'agent:devops'];
+
 function token() {
   const value = (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '').trim();
   if (!value) throw new Error('GITHUB_TOKEN or GH_TOKEN is required');
@@ -40,29 +51,76 @@ function headers(extra = {}) {
 }
 
 async function gql(query, variables = {}) {
-  const response = await fetch(GRAPHQL_API, {
-    method: 'POST',
-    headers: headers({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ query, variables }),
-  });
-  const json = await response.json();
-  if (!response.ok || json.errors) {
-    throw new Error(JSON.stringify({ status: response.status, errors: json.errors || json }, null, 2));
-  }
-  return json.data;
+  return retryAsync(
+    async () => {
+      let response;
+      try {
+        response = await fetch(GRAPHQL_API, {
+          method: 'POST',
+          headers: headers({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ query, variables }),
+        });
+      } catch (error) {
+        throw retryableError(`GitHub GraphQL request failed: ${error.message || error}`);
+      }
+      const text = await response.text();
+      let json;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        const message = JSON.stringify({ status: response.status, body: text }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      if (!response.ok || json.errors) {
+        const message = JSON.stringify({ status: response.status, errors: json.errors || json }, null, 2);
+        if ((!response.ok && isRetriableStatus(response.status)) || isRetriableGraphQLErrors(json.errors)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      return json.data;
+    },
+    { label: 'GitHub GraphQL ingest', ...RETRY }
+  );
 }
 
 async function rest(path, options = {}) {
-  const response = await fetch(`${REST_API}${path}`, {
-    ...options,
-    headers: headers({ 'Content-Type': 'application/json', ...(options.headers || {}) }),
-  });
-  const text = await response.text();
-  const body = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(JSON.stringify({ status: response.status, path, body }, null, 2));
-  }
-  return body;
+  return retryAsync(
+    async () => {
+      let response;
+      try {
+        response = await fetch(`${REST_API}${path}`, {
+          ...options,
+          headers: headers({ 'Content-Type': 'application/json', ...(options.headers || {}) }),
+        });
+      } catch (error) {
+        throw retryableError(`GitHub REST request failed: ${error.message || error}`);
+      }
+      const text = await response.text();
+      let body;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        const message = JSON.stringify({ status: response.status, path, body: text }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      if (!response.ok) {
+        const message = JSON.stringify({ status: response.status, path, body }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      return body;
+    },
+    { label: `GitHub REST ingest ${path}`, ...RETRY }
+  );
 }
 
 async function loadProject() {
@@ -108,6 +166,11 @@ async function loadProjectItems() {
                   number
                   title
                   url
+                  labels(first:20) {
+                    nodes {
+                      name
+                    }
+                  }
                   assignees(first:20) {
                     nodes {
                       login
@@ -165,6 +228,14 @@ function assigneeLogins(content) {
     .filter(Boolean);
 }
 
+function issueLabels(content) {
+  return (content?.labels?.nodes || []).map((label) => label?.name).filter(Boolean);
+}
+
+function currentAgentLabel(content) {
+  return issueLabels(content).find((label) => ALL_AGENT_LABELS.includes(label)) || null;
+}
+
 function hasDeveloperAgentAssignee(content) {
   const known = new Set(CONFIG.developerAgentLogins);
   return assigneeLogins(content).some((login) => known.has(login));
@@ -200,6 +271,31 @@ async function moveProjectItem(project, itemId, targetStatus) {
       }) { projectV2Item { id } }
     }
   `, { projectId: project.id, itemId, fieldId: field.id, optionId: option.id });
+}
+
+async function ensureLabelExists(repoFullName, labelName) {
+  const [owner, repo] = repoFullName.split('/');
+  try {
+    await rest(`/repos/${owner}/${repo}/labels`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: labelName,
+        color: '1f6feb',
+        description: 'Task atualmente com o agent Developer',
+      }),
+    });
+  } catch (error) {
+    const payload = JSON.parse(error.message || '{}');
+    if (payload.status !== 422) throw error;
+  }
+}
+
+async function replaceIssueLabels(repoFullName, issueNumber, labels) {
+  const [owner, repo] = repoFullName.split('/');
+  await rest(`/repos/${owner}/${repo}/issues/${issueNumber}/labels`, {
+    method: 'PUT',
+    body: JSON.stringify(labels),
+  });
 }
 
 async function getRepositoryAssignableActor(repositoryFullName) {
@@ -302,8 +398,9 @@ async function hasActiveDeveloperExecution() {
     if (statusOf(item)?.toLowerCase() !== CONFIG.status.toLowerCase()) return false;
     const content = item.content;
     if (!content || content.__typename !== 'Issue') return false;
+    if (currentAgentLabel(content) !== DEVELOPER_LABEL) return false;
     if (!hasDeveloperAgentAssignee(content)) return false;
-    return !hasHumanAssignee(content);
+    return true;
   });
 }
 
@@ -383,6 +480,8 @@ async function main() {
   const branch = await createTaskBranch(issue.number);
   let developerAssigned = false;
   let developerAssignmentReason = null;
+  await ensureLabelExists(CONFIG.repository, DEVELOPER_LABEL);
+  await replaceIssueLabels(CONFIG.repository, issue.number, ['devops', 'untracked-change', DEVELOPER_LABEL]);
 
   await rest(`/repos/${CONFIG.repository}/issues/${issue.number}/comments`, {
     method: 'POST',

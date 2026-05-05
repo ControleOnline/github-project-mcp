@@ -75,6 +75,19 @@ Fluxo esperado:
 
 A retomada automática evita lock indefinido da fila do `Developer` quando uma execução antiga fica parada ou quando a issue é devolvida manualmente sem limpeza operacional completa.
 
+## Bloqueio por Copilot indisponível no repositório alvo
+
+O dispatcher comum usado pelos runners de `Developer`, `Security` e `QA` trata como bloqueio operacional o caso em que o GitHub não expõe actor atribuível do Copilot para a issue alvo.
+
+Quando a API responder que o Copilot agent não está habilitado no repositório alvo, a automação:
+
+- adiciona o label `ops:copilot-unavailable` na issue afetada
+- remove o label `agent:*` da tentativa atual para evitar looping automático cego
+- registra um comentário rastreável explicando o bloqueio
+- continua procurando a próxima task elegível em vez de encerrar a rodada como fila vazia
+
+Esse estado indica limitação operacional do repositório de destino, e não falha do fluxo central do `cto-mcp`.
+
 ## Credenciais e secrets
 
 Este repositório não deve documentar nem depender de caminhos antigos de secrets em arquivos locais.

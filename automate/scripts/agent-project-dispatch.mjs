@@ -48,6 +48,7 @@ const ROLE_META = {
 const ALL_AGENT_LABELS = Object.values(ROLE_META).map((entry) => entry.label);
 const DEFAULT_AGENT_LOGIN = 'copilot-swe-agent';
 const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
+const DEFAULT_STALE_AFTER_MINUTES = '30';
 const RETRY = githubRetryConfig('AGENT');
 const LABEL_META = {
   'agent:developer': { color: '1f6feb', description: 'Task atualmente com o agent Developer' },
@@ -65,6 +66,11 @@ function parseCsv(value) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function parsePositiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 function getRole() {
@@ -299,6 +305,18 @@ function sortByCreatedAt(items) {
   });
 }
 
+function minutesSince(value) {
+  const timestamp = Date.parse(value || '');
+  if (!timestamp) return null;
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+}
+
+function isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes) {
+  if (!isActiveForRole(item, role, knownAgentLogins)) return false;
+  const ageMinutes = minutesSince(item.content?.updatedAt);
+  return ageMinutes !== null && ageMinutes >= staleAfterMinutes;
+}
+
 function isEligibleForRole(item, role, workStatus, knownAgentLogins) {
   const issue = item.content;
   if (!issue?.repository?.nameWithOwner) return false;
@@ -332,18 +350,27 @@ function isActiveForRole(item, role, knownAgentLogins) {
   return currentAgentLabel(issue) === ROLE_META[role].label;
 }
 
-function buildAgentInstructions(role, issueRef, issueNumber) {
+function buildAgentInstructions(role, issueRef, issueNumber, mode = 'dispatch') {
   const meta = ROLE_META[role];
   const agentFile = `.github/agents/${role}.agent.md`;
+  const prefix =
+    mode === 'recovery'
+      ? `Retome a execução travada ou devolvida para o agent ${meta.displayName} na issue ${issueRef}.`
+      : `Atue como o agent ${meta.displayName} da ControleOnline para a issue ${issueRef}.`;
 
   return [
-    `Atue como o agent ${meta.displayName} da ControleOnline para a issue ${issueRef}.`,
+    prefix,
     `Antes de agir, leia e siga \`${agentFile}\` no repositório alvo.`,
     'Leia também o `AGENTS.md` mais específico do código afetado.',
     `Trabalhe a partir do branch \`task-${issueNumber}\` derivado de \`master\` quando a tarefa exigir mudanças.`,
     'Use GitHub como fonte de verdade para issue, PR, comentários, branch, labels e evidências.',
+    mode === 'recovery'
+      ? 'Se a issue foi devolvida manualmente, trate isso como correção normal do fluxo; revise o histórico recente e continue sem esperar intervenção humana.'
+      : '',
     meta.nextInstruction,
-  ].join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 function buildAssignmentComment(role, issueRef) {
@@ -360,6 +387,19 @@ function buildAssignmentComment(role, issueRef) {
     origin,
     'Critério: task elegível, sem ownership exclusivamente humano e sem outra execução ativa do mesmo agent.',
     `Ação: o runner atribuiu o agent \`${meta.displayName}\` para iniciar a execução.`,
+  ].join('\n');
+}
+
+function buildRecoveryComment(role, issueRef, staleAfterMinutes, updatedAt) {
+  const meta = ROLE_META[role];
+  const ageMinutes = minutesSince(updatedAt);
+  return [
+    `### ${meta.commentHeader} - retomada automática`,
+    '',
+    `Issue: ${issueRef}`,
+    `Origem: execução ativa em \`${meta.label}\` sem avanço recente.`,
+    `Critério: issue ainda aberta, com assignee de agent, parada há ${ageMinutes ?? 'tempo indeterminado'} minutos; limite configurado: ${staleAfterMinutes} minutos.`,
+    `Ação: o runner reatribuiu o agent \`${meta.displayName}\` para retomar a execução em vez de bloquear a fila.`,
   ].join('\n');
 }
 
@@ -438,9 +478,10 @@ async function addIssueComment(issueId, body) {
   );
 }
 
-function serializeItem(item, knownAgentLogins, preferredAgentLogin) {
+function serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes = null) {
   const issue = item.content;
   const actor = getAssignableActor(issue, preferredAgentLogin);
+  const ageMinutes = minutesSince(issue.updatedAt);
   return {
     issue: {
       id: issue.id,
@@ -450,6 +491,7 @@ function serializeItem(item, knownAgentLogins, preferredAgentLogin) {
       state: issue.state,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
+      ageMinutes,
     },
     projectItemId: item.id,
     currentProjectStatus: getStatusValue(item),
@@ -460,6 +502,8 @@ function serializeItem(item, knownAgentLogins, preferredAgentLogin) {
     hasHumanAssignee: hasHumanAssignee(issue, knownAgentLogins),
     hasHumanOnlyAssignee: hasHumanOnlyAssignee(issue, knownAgentLogins),
     canAssignPreferredAgent: Boolean(actor?.id),
+    staleAfterMinutes,
+    isStale: staleAfterMinutes ? ageMinutes !== null && ageMinutes >= staleAfterMinutes : null,
   };
 }
 
@@ -484,6 +528,8 @@ async function main() {
   );
   const baseRef = env('AGENT_COPILOT_BASE_REF', 'master');
   const model = env('AGENT_COPILOT_MODEL');
+  const staleAfterMinutes = parsePositiveNumber(env('AGENT_STALE_AFTER_MINUTES', DEFAULT_STALE_AFTER_MINUTES), 30);
+  const redispatchStaleActive = env('AGENT_REDISPATCH_STALE_ACTIVE', 'true').toLowerCase() !== 'false';
 
   const data = await getProjectSnapshot(org, projectNumber);
   const project = data?.organization?.projectV2;
@@ -491,7 +537,13 @@ async function main() {
 
   const items = sortByCreatedAt(project.items?.nodes || []);
   const activeItems = items.filter((item) => isActiveForRole(item, role, knownAgentLogins));
+  const staleActiveItems = redispatchStaleActive
+    ? activeItems.filter((item) => isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes))
+    : [];
+  const staleActiveIds = new Set(staleActiveItems.map((item) => item.id));
+  const freshActiveItems = activeItems.filter((item) => !staleActiveIds.has(item.id));
   const candidateItems = items.filter((item) => isEligibleForRole(item, role, workStatus, knownAgentLogins));
+  const targetItems = [...staleActiveItems, ...candidateItems];
 
   const result = {
     generatedAt: new Date().toISOString(),
@@ -505,40 +557,46 @@ async function main() {
     },
     workStatus,
     roleLabel: meta.label,
+    staleAfterMinutes,
+    redispatchStaleActive,
     activeCount: activeItems.length,
+    freshActiveCount: freshActiveItems.length,
+    staleActiveCount: staleActiveItems.length,
     candidateCount: candidateItems.length,
-    activeItems: activeItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin)),
-    candidateItems: candidateItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin)),
+    activeItems: activeItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
+    staleActiveItems: staleActiveItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
+    candidateItems: candidateItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
     assignmentAttempts: [],
   };
 
-  if (activeItems.length > 0) {
+  if (freshActiveItems.length > 0) {
     result.ok = true;
     result.skipped = true;
-    const refs = activeItems
+    const refs = freshActiveItems
       .slice(0, 5)
       .map((item) => `${item.content.repository.nameWithOwner}#${item.content.number}`)
       .join(', ');
-    result.reason = `Já existe task em execução pelo agent ${meta.displayName}: ${refs}.`;
+    result.reason = `Já existe task recente em execução pelo agent ${meta.displayName}: ${refs}.`;
     const outPath = writeOutputFile(result);
     console.log(JSON.stringify({ ok: true, skipped: true, reason: result.reason, outPath }, null, 2));
     return;
   }
 
-  if (candidateItems.length === 0) {
+  if (targetItems.length === 0) {
     result.ok = true;
     result.skipped = true;
-    result.reason = `Nenhuma task elegível foi encontrada para ${meta.displayName}.`;
+    result.reason = `Nenhuma task elegível ou execução travada foi encontrada para ${meta.displayName}.`;
     const outPath = writeOutputFile(result);
     console.log(JSON.stringify({ ok: true, skipped: true, reason: result.reason, outPath }, null, 2));
     return;
   }
 
-  for (const target of candidateItems) {
+  for (const target of targetItems) {
     const issue = target.content;
     const issueRef = `${issue.repository.nameWithOwner}#${issue.number}`;
     const actor = getAssignableActor(issue, preferredAgentLogin);
-    const targetRecord = serializeItem(target, knownAgentLogins, preferredAgentLogin);
+    const targetRecord = serializeItem(target, knownAgentLogins, preferredAgentLogin, staleAfterMinutes);
+    const mode = staleActiveIds.has(target.id) ? 'recovery' : 'dispatch';
 
     if (!actor?.id) {
       result.assignmentAttempts.push({
@@ -555,6 +613,7 @@ async function main() {
     const nextActorIds = [...new Set([actor.id, ...preservedHumanActorIds])];
 
     result.selectedItem = targetRecord;
+    result.selectedMode = mode;
 
     if (!dryRun) {
       await ensureLabelExists(issue.repository.nameWithOwner, meta.label);
@@ -564,15 +623,23 @@ async function main() {
         nextActorIds,
         issue.repository.id,
         baseRef,
-        buildAgentInstructions(role, issueRef, issue.number),
+        buildAgentInstructions(role, issueRef, issue.number, mode),
         model
       );
-      await addIssueComment(issue.id, buildAssignmentComment(role, issueRef));
+      await addIssueComment(
+        issue.id,
+        mode === 'recovery'
+          ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
+          : buildAssignmentComment(role, issueRef)
+      );
       result.executed = true;
     } else {
       result.executed = false;
-      result.previewComment = buildAssignmentComment(role, issueRef);
-      result.previewInstructions = buildAgentInstructions(role, issueRef, issue.number);
+      result.previewComment =
+        mode === 'recovery'
+          ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
+          : buildAssignmentComment(role, issueRef);
+      result.previewInstructions = buildAgentInstructions(role, issueRef, issue.number, mode);
       result.previewLabels = nextLabels;
       result.previewActorIds = nextActorIds;
     }
@@ -583,8 +650,11 @@ async function main() {
     result.baseRef = baseRef;
     result.assignmentAttempts.push({
       issue: targetRecord.issue,
-      status: dryRun ? 'preview' : 'assigned',
-      reason: 'Primeira task elegível e atribuível encontrada.',
+      status: dryRun ? 'preview' : mode === 'recovery' ? 'redispatched' : 'assigned',
+      reason:
+        mode === 'recovery'
+          ? 'Primeira execução travada e atribuível encontrada para retomada automática.'
+          : 'Primeira task elegível e atribuível encontrada.',
     });
 
     const outPath = writeOutputFile(result);
@@ -594,6 +664,7 @@ async function main() {
           ok: true,
           dryRun,
           role,
+          mode,
           assignedIssue: issueRef,
           assignedAgent: preferredAgentLogin,
           outPath,
@@ -607,7 +678,7 @@ async function main() {
 
   result.ok = false;
   result.skipped = true;
-  result.reason = `Nenhuma task elegível pôde ser atribuída ao agent ${meta.displayName}.`;
+  result.reason = `Nenhuma task elegível ou execução travada pôde ser atribuída ao agent ${meta.displayName}.`;
   const outPath = writeOutputFile(result);
   console.log(JSON.stringify({ ok: false, skipped: true, reason: result.reason, outPath }, null, 2));
 }

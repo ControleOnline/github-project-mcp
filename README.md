@@ -33,9 +33,15 @@ As regras-base dos agents ficam em [`automation/`](./automation/) e a política 
 
 ## Estrutura
 
+- `automate/agents/README.md`: mapa de ownership operacional por agent
+- `automate/agents/developer/dispatch.mjs`: entrada operacional do `Developer`
+- `automate/agents/qa/dispatch.mjs`: entrada operacional do `Quality Assurance`
+- `automate/agents/qa/review.mjs`: entrada de compatibilidade para a revisão de QA
+- `automate/agents/security/dispatch.mjs`: entrada operacional do `Security`
+- `automate/agents/security/review.mjs`: entrada de compatibilidade para a revisão de Security
 - `automate/developer/README.md`: política operacional do runner de `Developer`
 - `automate/scripts/agent-flow-sync.mjs`: sincronizador central de labels iniciais, conflitos e limpeza final
-- `automate/scripts/agent-project-dispatch.mjs`: despachante genérico de agents por label/Work
+- `automate/scripts/agent-project-dispatch.mjs`: base compartilhada do despachante genérico de agents por label/Work
 - `automate/quality-assurance.md`: política central do agente de QA
 - `automate/security-review.md`: política central do analista de segurança
 - `automate/project-status.md`: regras oficiais de roteamento para QA
@@ -43,13 +49,14 @@ As regras-base dos agents ficam em [`automation/`](./automation/) e a política 
 - `automate/pull-request-review.md`: regras de review para QA
 - `automate/security-pull-request-review.md`: regras de review para Security
 - `automate/staging-merge.md`: regras de promoção para `staging` via DevOps
-- `automate/scripts/developer-project-dispatch.mjs`: base executável do despacho de `Developer`
+- `automate/scripts/developer-project-dispatch.mjs`: entrada legada do despacho de `Developer`
 - `src/agent-flow-sync-runner.js`: wrapper do sincronizador central do fluxo
+- `src/agent-dispatch-runner.js`: wrapper comum que resolve a entrada por agent e registra bloqueios operacionais
 - `src/retry.js`: política compartilhada de retry para chamadas externas do GitHub
 - `src/run-with-retry.js`: wrapper seguro de retry para comandos idempotentes do workflow, como `npm install`
 - `src/devops-runner.js`: wrapper do despachante de `DevOps`
-- `automate/scripts/qa-project-review.mjs`: base executável do fluxo de QA
-- `automate/scripts/security-project-review.mjs`: base executável do fluxo de Security
+- `automate/scripts/qa-project-review.mjs`: entrada legada da revisão de QA
+- `automate/scripts/security-project-review.mjs`: entrada legada da revisão de Security
 - `automate/workflows/developer-project-dispatch.yml`: workflow de `Developer`
 - `automate/workflows/qa-project-review.yml`: workflow de QA
 - `automate/workflows/security-project-review.yml`: workflow de Security

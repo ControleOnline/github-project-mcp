@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: node src/run-with-retry.js npm install
@@ -36,7 +36,7 @@ jobs:
           FLOW_OUTPUT_DIR: ./.flow-output
 
       - name: Upload flow sync snapshot artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: agent-flow-sync
           path: ./.flow-output/agent-flow-sync.json

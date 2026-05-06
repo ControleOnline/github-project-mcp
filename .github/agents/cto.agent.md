@@ -94,6 +94,11 @@ Nesses casos, o papel correto do CTO é:
 - devolver a trilha ao agent responsável com direcionamento claro
 - acompanhar se o fluxo voltou a andar depois da correção estrutural
 
+Regra adicional de leitura operacional:
+
+- issue com `ops:copilot-unavailable` e PR aberto vinculado não deve ser tratada como backlog virgem de `Developer`
+- nessa situação, o CTO deve registrar que já existe entrega em review ou composição e evitar reencaminhamento indevido para nova captura automática enquanto a trilha de PR continuar válida
+
 ## Espelho operacional do CTO
 
 O `cto-mcp` agora também pode executar um espelho recorrente do CTO via workflow próprio.
@@ -104,6 +109,7 @@ Esse espelho existe para:
 - detectar tasks em `Done` sem sinais mínimos de revisão concluída
 - reverter coluna apenas quando o erro for inequívoco e verificável
 - deixar comentário rastreável explicando a reversão
+- separar bloqueio de captura sem entrega aberta de bloqueio com PR já em andamento
 
 Esse espelho não existe para:
 
@@ -180,7 +186,7 @@ Não invente agents, responsabilidades, execuções, resultados, owners ou concl
 
 Não declare trabalho como concluído sem evidência verificável no GitHub.
 
-Não faça correções arbitrárias sem base observável no repositório, nos workflows, nas issues, nos PRs ou no histórico disponível.
+Não faça correções arbitrárias sem base observável no repositório, nos workflows, nos issues, nos PRs ou no histórico disponível.
 
 Prefira correção direta a burocracia, mas mantenha rastreabilidade suficiente para que a empresa entenda o que foi alterado e por quê.
 

@@ -295,6 +295,10 @@ function openPullRequests(issue) {
   return normalizePullRequests(issue).filter((pr) => pr?.state === 'OPEN');
 }
 
+function hasOpenPullRequest(issue) {
+  return openPullRequests(issue).length > 0;
+}
+
 function openPullRequestsInSameRepository(issue) {
   const repoFullName = issue.repository?.nameWithOwner;
   return openPullRequests(issue).filter((pr) => pr?.repository?.nameWithOwner === repoFullName);
@@ -436,6 +440,13 @@ function serializeItem(item, knownAgentLogins) {
     hasAgentAssignee: hasAgentAssignee(issue, knownAgentLogins),
     hasHumanAssignee: hasHumanAssignee(issue, knownAgentLogins),
     hasHumanOnlyAssignee: hasHumanOnlyAssignee(issue, knownAgentLogins),
+    openPullRequests: pullRequests
+      .filter((pr) => pr?.state === 'OPEN')
+      .map((pr) => ({
+        ref: `${pr.repository.nameWithOwner}#${pr.number}`,
+        url: pr.url,
+        mergeable: pr.mergeable,
+      })),
     conflictingPullRequests: pullRequests
       .filter((pr) => pr?.state === 'OPEN' && pr?.mergeable === 'CONFLICTING')
       .map((pr) => ({
@@ -576,6 +587,22 @@ async function main() {
         await replaceAssignableActors(issue.id, preservedHumanActorIds);
         await addIssueComment(issue.id, buildOrphanAgentCleanupComment(issueRef));
       }
+      continue;
+    }
+
+    if (
+      !blockedByUnsupportedCopilot &&
+      status?.toLowerCase() === workStatus.toLowerCase() &&
+      !stageLabel &&
+      !humanOnlyAssigned &&
+      !agentAssigned &&
+      hasOpenPullRequest(issue)
+    ) {
+      result.actions.push({
+        type: 'hold-work-item-with-open-pr',
+        issue: record.issue,
+        openPullRequests: record.openPullRequests,
+      });
       continue;
     }
 

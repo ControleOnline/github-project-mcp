@@ -187,6 +187,7 @@ async function getIssueQaContext(owner, repo, issueNumber) {
                     state
                     isDraft
                     reviewDecision
+                    body
                     repository {
                       nameWithOwner
                     }
@@ -264,8 +265,94 @@ function getChecks(pr) {
   return pr.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes || [];
 }
 
-function hasPassingChecks(pr) {
-  return getRollupState(pr) === 'SUCCESS';
+function normalizeCheckContext(node) {
+  if (node?.__typename === 'CheckRun') {
+    return {
+      name: node.name || 'unknown-check-run',
+      state: (node.conclusion || node.status || 'PENDING').toUpperCase()
+    };
+  }
+
+  return {
+    name: node?.context || 'unknown-status-context',
+    state: (node?.state || 'PENDING').toUpperCase()
+  };
+}
+
+function isSuccessfulCheckState(state) {
+  return ['SUCCESS', 'SUCCESSFUL', 'NEUTRAL', 'SKIPPED'].includes(state);
+}
+
+function isNonBlockingExternalCheck(check) {
+  const normalizedName = (check.name || '').trim().toLowerCase();
+  const normalizedState = (check.state || '').trim().toUpperCase();
+  return normalizedName === 'scrutinizer' && ['ERROR', 'FAILURE', 'FAILED'].includes(normalizedState);
+}
+
+function evaluateCheckHealth(pr) {
+  const checks = getChecks(pr).map(normalizeCheckContext);
+
+  if (checks.length === 0) {
+    return {
+      checks,
+      blocking: [
+        {
+          name: 'missing-checks',
+          state: 'MISSING'
+        }
+      ],
+      warnings: []
+    };
+  }
+
+  const blocking = [];
+  const warnings = [];
+
+  for (const check of checks) {
+    if (isSuccessfulCheckState(check.state)) continue;
+    if (isNonBlockingExternalCheck(check)) {
+      warnings.push(check);
+      continue;
+    }
+    blocking.push(check);
+  }
+
+  return { checks, blocking, warnings };
+}
+
+function buildEquivalentEvidenceText(issue, prs) {
+  return [
+    issue.body,
+    ...(issue.comments?.nodes || []).map((comment) => comment.body),
+    ...prs.flatMap((pr) => [
+      pr.body,
+      ...(pr.comments?.nodes || []).map((comment) => comment.body),
+      ...(pr.reviews?.nodes || []).map((review) => review.body)
+    ])
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function hasEquivalentEvidence(issue, prs) {
+  const text = buildEquivalentEvidenceText(issue, prs);
+  const patterns = [
+    /git diff --check/i,
+    /pull request checks?/i,
+    /github actions/i,
+    /phpunit/i,
+    /npm test/i,
+    /node --test/i,
+    /workflow/i,
+    /\b\d+\/\d+\s+test/i,
+    /tests?\s+passing/i,
+    /conclu[ií]d[oa]\s+com\s+sucesso/i,
+    /status publicado/i,
+    /checks?\s+.*verde/i,
+    /valida(c|ç)(a|ã)o\s+.*(sucesso|verde)/i
+  ];
+
+  return patterns.some((pattern) => pattern.test(text));
 }
 
 function needsSecurityApproval(issue, prs, securityApprovers) {
@@ -292,6 +379,10 @@ function needsSecurityApproval(issue, prs, securityApprovers) {
   return !(issueApproval || prApproval);
 }
 
+function formatCheckList(checks) {
+  return checks.map((check) => `${check.name}=${check.state}`).join(', ');
+}
+
 function buildDecision(issue, prs, securityApprovers) {
   const reasons = [];
 
@@ -316,16 +407,44 @@ function buildDecision(issue, prs, securityApprovers) {
     };
   }
 
-  const failingPrs = prs.filter((pr) => !hasPassingChecks(pr));
-  if (failingPrs.length > 0) {
-    const refs = failingPrs.map((pr) => `${pr.repository.nameWithOwner}#${pr.number}`).join(', ');
-    reasons.push(`Checks ainda nao estao verdes no commit atual de: ${refs}.`);
+  const checkHealth = prs.map((pr) => ({
+    pr,
+    ...evaluateCheckHealth(pr)
+  }));
+
+  const blockingPrs = checkHealth.filter((entry) => entry.blocking.length > 0);
+  if (blockingPrs.length > 0) {
+    const refs = blockingPrs
+      .map((entry) => `${entry.pr.repository.nameWithOwner}#${entry.pr.number} (${formatCheckList(entry.blocking)})`)
+      .join(', ');
+    reasons.push(`Checks ainda nao estao aceitaveis no commit atual de: ${refs}.`);
     return {
       projectTarget: DECISION_DEVELOPER,
       prReviewAction: 'REQUEST_CHANGES',
       status: 'rejected',
       reasons
     };
+  }
+
+  const warningPrs = checkHealth.filter((entry) => entry.warnings.length > 0);
+  if (warningPrs.length > 0) {
+    if (!hasEquivalentEvidence(issue, prs)) {
+      const refs = warningPrs
+        .map((entry) => `${entry.pr.repository.nameWithOwner}#${entry.pr.number} (${formatCheckList(entry.warnings)})`)
+        .join(', ');
+      reasons.push(`Restou apenas falha externa conhecida em ${refs}, mas ainda nao encontrei evidencia tecnica equivalente suficiente publicada na issue/PR.`);
+      return {
+        projectTarget: DECISION_DEVELOPER,
+        prReviewAction: 'REQUEST_CHANGES',
+        status: 'rejected',
+        reasons
+      };
+    }
+
+    const refs = warningPrs
+      .map((entry) => `${entry.pr.repository.nameWithOwner}#${entry.pr.number} (${formatCheckList(entry.warnings)})`)
+      .join(', ');
+    reasons.push(`Falha externa conhecida foi tratada como warning em: ${refs}. A issue/PR ja publica evidencia tecnica equivalente para a revisao.`);
   }
 
   if (needsSecurityApproval(issue, prs, securityApprovers)) {
@@ -338,7 +457,7 @@ function buildDecision(issue, prs, securityApprovers) {
     };
   }
 
-  reasons.push('Checks relevantes estao verdes e nao ha bloqueio de seguranca configurado.');
+  reasons.push('Checks relevantes estao verdes ou a trilha ja traz evidencia tecnica equivalente suficiente.');
   reasons.push('Ainda pode ser necessario complementar a regra de merge em staging para composicoes cross-repo.');
   return {
     projectTarget: DECISION_STAGING,

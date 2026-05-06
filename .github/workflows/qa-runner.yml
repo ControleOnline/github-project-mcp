@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
       - run: node src/run-with-retry.js npm install
@@ -39,7 +39,7 @@ jobs:
           AGENT_OUTPUT_DIR: ./.qa-output
 
       - name: Upload QA snapshot artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: qa-project-dispatch
           path: ./.qa-output/agent-project-dispatch-qa.json

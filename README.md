@@ -77,8 +77,9 @@ Fluxo esperado:
 7. Registrar comentário rastreável.
 8. Revisar PR quando aplicável.
 9. Mudar o agente responsável para o próximo passo correto.
-10. Se houver PR com conflito de merge, a responsabilidade operacional passa para `DevOps`.
-11. Só usar coluna para o passo final de `DevOps` -> `In Review`.
+10. Se existir PR aberto com conflito no mesmo repositório da issue/composição atual, a responsabilidade operacional passa para `DevOps`.
+11. Se o conflito existir apenas em submódulo ou repositório satélite, sem PR agregador aberto no repositório da issue, a task deve voltar para `Developer` para recompor a trilha correta.
+12. Só usar coluna para o passo final de `DevOps` -> `In Review`.
 
 A retomada automática evita lock indefinido da fila do `Developer` quando uma execução antiga fica parada ou quando a issue é devolvida manualmente sem limpeza operacional completa.
 
@@ -202,7 +203,8 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - task aberta em `Work` sem `agent:*` entra por padrão em `Developer`
 - `Developer` não deve capturar tasks em `Work` que estejam exclusivamente atribuídas a pessoas.
 - issue aberta com `agent:developer` e assignee de agent so deve bloquear a fila enquanto houver atividade recente; acima do limite configurado, a automação tenta retomar a execucao.
-- conflito de merge em PR aberto deve ir para `DevOps`
+- conflito de merge em PR aberto no mesmo repositório da issue/composição deve ir para `DevOps`
+- conflito apenas em submódulo ou repositório satélite, sem PR agregador aberto no repositório da issue, deve voltar para `Developer`
 - falhas transitórias de GitHub, rede e autenticação devem usar retry automático antes de falhar a rodada
 - Cada agent só pode concluir a task repassando para um próximo agent válido, ou para `In Review` no caso do DevOps.
 - O fluxo de Security pode acionar o Copilot cloud agent para aprofundar a investigação antes da decisão final, quando configurado.

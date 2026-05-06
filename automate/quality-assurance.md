@@ -60,6 +60,21 @@ Antes da decisao final, validar:
 - nao ha ausencia de evidencia critica
 - quando exigido, existe aprovacao explicita de seguranca
 
+### Excecao operacional para checks externos recorrentes
+
+Quando o unico sinal vermelho restante for um check externo recorrente conhecido, como `Scrutinizer`, a automacao nao deve reprovar automaticamente por isso sozinho.
+
+Essa excecao so pode ser usada quando:
+
+- nao existir outro check vermelho ou pendencia tecnica objetiva no commit atual
+- a issue ou o PR ja trouxer evidencia tecnica equivalente suficiente para a revisao, como `git diff --check`, teste focal, workflow verde ou validacao publicada de forma rastreavel
+
+Nessa situacao:
+
+- o check externo deve ser tratado como warning operacional
+- a decisao final continua dependendo da trilha tecnica e das demais regras de QA
+- a automacao deve registrar explicitamente que a aprovacao nao ignorou falta de evidencia, e sim substituiu um gate externo instavel por evidencia equivalente publicada
+
 ## Regras de decisao
 
 ### Mover para `Developer`

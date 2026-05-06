@@ -280,6 +280,15 @@ function assigneeLogins(issue) {
     .filter(Boolean);
 }
 
+function serializeAssigneeActors(issue) {
+  return (issue.assignees?.nodes || [])
+    .map((assignee) => ({
+      id: assignee?.id || null,
+      login: (assignee?.login || '').trim().toLowerCase(),
+    }))
+    .filter((assignee) => assignee.login);
+}
+
 function hasAgentAssignee(issue, knownAgentLogins) {
   return assigneeLogins(issue).some((login) => knownAgentLogins.has(login));
 }
@@ -437,7 +446,7 @@ function buildUnavailableComment(role, issueRef, unsupportedLabel) {
     '',
     `Issue: ${issueRef}`,
     `Bloqueio: o repositório alvo não aceita atribuição do Copilot cloud agent para o papel \`${meta.displayName}\`.`,
-    `Ação: a automação marcou a issue com \`${unsupportedLabel}\` e retirou o label \`${meta.label}\` para evitar looping automático até a habilitação operacional do agent no repositório alvo.`,
+    `Ação: a automação marcou a issue com \`${unsupportedLabel}\`, retirou o label \`${meta.label}\` e tentou remover o assignee técnico do Copilot, preservando assignees humanos quando a API do repositório permitiu.`,
     'Próximo passo: habilitar o Copilot agent neste repositório e depois devolver a task para `Work` ou reaplicar o label do agent correto.',
   ].join('\n');
 }
@@ -466,6 +475,24 @@ async function replaceIssueLabels(repoFullName, issueNumber, nextLabels) {
     method: 'PUT',
     body: JSON.stringify(nextLabels),
   });
+}
+
+async function replaceAssignableActors(issueId, actorIds) {
+  return githubGraphQL(
+    `mutation($issueId:ID!, $actorIds:[ID!]!) {
+      replaceActorsForAssignable(input: {
+        assignableId: $issueId,
+        actorIds: $actorIds
+      }) {
+        assignable {
+          ... on Issue {
+            id
+          }
+        }
+      }
+    }`,
+    { issueId, actorIds }
+  );
 }
 
 async function assignIssueToAgent(issueId, actorIds, repositoryId, baseRef, customInstructions, model) {
@@ -539,6 +566,7 @@ function serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMi
     labels: issueLabels(issue),
     currentAgentLabel: currentAgentLabel(issue),
     assignees: assigneeLogins(issue),
+    assigneeActors: serializeAssigneeActors(issue),
     suggestedActors: (issue.repository?.suggestedActors?.nodes || [])
       .map((candidate) => candidate?.login)
       .filter(Boolean),
@@ -708,12 +736,20 @@ async function main() {
       if (!dryRun && isCopilotUnavailableError(error)) {
         await ensureLabelExists(issue.repository.nameWithOwner, unsupportedLabel);
         await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, blockedLabels);
+        let clearedAgentAssignee = false;
+        try {
+          await replaceAssignableActors(issue.id, preservedHumanActorIds);
+          clearedAgentAssignee = true;
+        } catch (cleanupError) {
+          result.assignmentCleanupWarning = cleanupError.message || String(cleanupError || '');
+        }
         await addIssueComment(issue.id, buildUnavailableComment(role, issueRef, unsupportedLabel));
         result.assignmentAttempts.push({
           issue: targetRecord.issue,
           status: 'blocked',
           reason: `Repositório sem suporte à atribuição do Copilot cloud agent; issue marcada com ${unsupportedLabel}.`,
           dispatchActorSource: targetRecord.dispatchActorSource,
+          cleanupClearedAgentAssignee: clearedAgentAssignee,
         });
         continue;
       }

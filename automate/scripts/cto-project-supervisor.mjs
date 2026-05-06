@@ -11,6 +11,9 @@ const GITHUB_API_URL = 'https://api.github.com/graphql';
 const ALL_AGENT_LABELS = ['agent:developer', 'agent:security', 'agent:qa', 'agent:devops'];
 const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
 const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
+const DEFAULT_PRIORITY_REPOSITORIES =
+  'ControleOnline/app-community,ControleOnline/api-community,ControleOnline/api-whatsapp';
+const DEFAULT_STALE_HOURS = '24';
 const RETRY = githubRetryConfig('CTO');
 
 function env(name, fallback = '') {
@@ -26,6 +29,11 @@ function parseCsv(value) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function parsePositiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 async function githubGraphQL(query, variables = {}) {
@@ -249,6 +257,12 @@ function buildComment(issueRef, fromStatus, targetStatus, reasons) {
   ].join('\n');
 }
 
+function ageHours(value) {
+  const timestamp = Date.parse(value || '');
+  if (!timestamp) return null;
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 3600000));
+}
+
 function serializeItem(item, knownAgentLogins, unsupportedLabel) {
   const issue = item.content;
   const labels = issueLabels(issue);
@@ -263,6 +277,7 @@ function serializeItem(item, knownAgentLogins, unsupportedLabel) {
       state: issue.state,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
+      ageHours: ageHours(issue.updatedAt),
     },
     projectItemId: item.id,
     currentProjectStatus: getStatusValue(item),
@@ -273,6 +288,7 @@ function serializeItem(item, knownAgentLogins, unsupportedLabel) {
     hasKnownAgentAssignee: assigneeLogins(issue).some((login) => knownAgentLogins.has(login)),
     pullRequests: pullRequests.map((pr) => ({
       ref: `${pr.repository?.nameWithOwner || 'unknown'}#${pr.number}`,
+      repository: pr.repository?.nameWithOwner || 'unknown',
       url: pr.url,
       state: pr.state,
       isDraft: Boolean(pr.isDraft),
@@ -351,12 +367,22 @@ function summarizeUnsupportedCopilot(blockedIssues) {
         issueCount: 0,
         projectStatuses: new Set(),
         issueRefs: [],
+        oldestUpdatedAt: null,
+        newestUpdatedAt: null,
+        openPullRequestCount: 0,
       });
     }
     const bucket = byRepository.get(repository);
     bucket.issueCount += 1;
     if (blocked.currentProjectStatus) bucket.projectStatuses.add(blocked.currentProjectStatus);
     bucket.issueRefs.push(blocked.issue.ref);
+    if (!bucket.oldestUpdatedAt || Date.parse(blocked.issue.updatedAt) < Date.parse(bucket.oldestUpdatedAt)) {
+      bucket.oldestUpdatedAt = blocked.issue.updatedAt;
+    }
+    if (!bucket.newestUpdatedAt || Date.parse(blocked.issue.updatedAt) > Date.parse(bucket.newestUpdatedAt)) {
+      bucket.newestUpdatedAt = blocked.issue.updatedAt;
+    }
+    bucket.openPullRequestCount += blocked.pullRequests.filter((pr) => pr.state === 'OPEN').length;
   }
 
   return Array.from(byRepository.values())
@@ -365,8 +391,35 @@ function summarizeUnsupportedCopilot(blockedIssues) {
       issueCount: bucket.issueCount,
       projectStatuses: Array.from(bucket.projectStatuses).sort(),
       issueRefs: bucket.issueRefs.sort(),
+      oldestUpdatedAt: bucket.oldestUpdatedAt,
+      oldestAgeHours: ageHours(bucket.oldestUpdatedAt),
+      newestUpdatedAt: bucket.newestUpdatedAt,
+      newestAgeHours: ageHours(bucket.newestUpdatedAt),
+      openPullRequestCount: bucket.openPullRequestCount,
     }))
     .sort((a, b) => a.repository.localeCompare(b.repository));
+}
+
+function normalizePriorityRepositories(org, repositories) {
+  return repositories.map((repository) => (repository.includes('/') ? repository : `${org}/${repository}`));
+}
+
+function summarizePriorityRepositories(priorityRepositories, unsupportedSummary, staleHours) {
+  const blockedMap = new Map(unsupportedSummary.map((entry) => [entry.repository, entry]));
+  return priorityRepositories.map((repository) => {
+    const blocked = blockedMap.get(repository);
+    return {
+      repository,
+      state: blocked ? 'blocked' : 'clear',
+      issueCount: blocked?.issueCount || 0,
+      stale: Boolean(blocked && blocked.oldestAgeHours !== null && blocked.oldestAgeHours >= staleHours),
+      oldestAgeHours: blocked?.oldestAgeHours ?? null,
+      newestAgeHours: blocked?.newestAgeHours ?? null,
+      openPullRequestCount: blocked?.openPullRequestCount || 0,
+      projectStatuses: blocked?.projectStatuses || [],
+      issueRefs: blocked?.issueRefs || [],
+    };
+  });
 }
 
 function writeOutputFile(payload) {
@@ -385,6 +438,11 @@ async function main() {
   const inReviewStatus = env('CTO_IN_REVIEW_STATUS', 'In Review');
   const doneStatus = env('CTO_DONE_STATUS', 'Done');
   const unsupportedLabel = env('CTO_UNSUPPORTED_LABEL', DEFAULT_UNSUPPORTED_LABEL);
+  const staleHours = parsePositiveNumber(env('CTO_BLOCKED_STALE_HOURS', DEFAULT_STALE_HOURS), 24);
+  const priorityRepositories = normalizePriorityRepositories(
+    org,
+    parseCsv(env('CTO_PRIORITY_REPOSITORIES', DEFAULT_PRIORITY_REPOSITORIES))
+  );
   const knownAgentLogins = new Set(
     parseCsv(env('CTO_KNOWN_AGENT_LOGINS', DEFAULT_KNOWN_AGENT_LOGINS)).map((login) => login.toLowerCase())
   );
@@ -428,6 +486,13 @@ async function main() {
     }
   }
 
+  const unsupportedCopilotByRepository = summarizeUnsupportedCopilot(unsupportedCopilotIssues);
+  const priorityRepositoryHealth = summarizePriorityRepositories(
+    priorityRepositories,
+    unsupportedCopilotByRepository,
+    staleHours
+  );
+
   const result = {
     generatedAt: new Date().toISOString(),
     dryRun,
@@ -441,8 +506,12 @@ async function main() {
     inReviewStatus,
     doneStatus,
     unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
-    unsupportedCopilotByRepository: summarizeUnsupportedCopilot(unsupportedCopilotIssues),
+    unsupportedCopilotByRepository,
     unsupportedCopilotIssues,
+    priorityRepositories,
+    blockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.state === 'blocked').length,
+    staleBlockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.stale).length,
+    priorityRepositoryHealth,
     actionCount: actions.length,
     actions,
   };
@@ -454,6 +523,8 @@ async function main() {
         ok: true,
         dryRun,
         unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
+        blockedPriorityRepositoryCount: result.blockedPriorityRepositoryCount,
+        staleBlockedPriorityRepositoryCount: result.staleBlockedPriorityRepositoryCount,
         actionCount: actions.length,
         outPath,
       },

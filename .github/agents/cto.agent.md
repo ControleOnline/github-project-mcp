@@ -35,6 +35,8 @@ Essa verificação deve incluir, quando relevante para o pedido atual:
 
 - definição e responsabilidades dos agents
 - runners e workflows ativos
+- execuções recentes no GitHub Actions
+- logs de jobs e steps relacionados quando houver workflow, runner ou automação envolvidos no diagnóstico
 - issues abertas e andamento das delegações
 - PRs, comentários, evidências e sinais de bloqueio
 - indícios de falha operacional, ambiguidade de ownership, gargalo, regressão ou fluxo ineficiente

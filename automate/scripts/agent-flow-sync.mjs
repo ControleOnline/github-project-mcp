@@ -273,10 +273,17 @@ function normalizePullRequests(issue) {
   return pullRequests;
 }
 
-function hasConflictingPullRequest(issue) {
-  return normalizePullRequests(issue).some(
-    (pr) => pr?.state === 'OPEN' && pr?.mergeable === 'CONFLICTING'
-  );
+function openPullRequests(issue) {
+  return normalizePullRequests(issue).filter((pr) => pr?.state === 'OPEN');
+}
+
+function openPullRequestsInSameRepository(issue) {
+  const repoFullName = issue.repository?.nameWithOwner;
+  return openPullRequests(issue).filter((pr) => pr?.repository?.nameWithOwner === repoFullName);
+}
+
+function hasConflictingPullRequestInSameRepository(issue) {
+  return openPullRequestsInSameRepository(issue).some((pr) => pr?.mergeable === 'CONFLICTING');
 }
 
 async function ensureLabelExists(repoFullName, labelName) {
@@ -353,8 +360,20 @@ function buildConflictComment(issueRef) {
     '### Fluxo redirecionado para DevOps',
     '',
     `Issue: ${issueRef}`,
-    'Motivo: foi detectado PR aberto com conflito de merge vinculado à issue.',
+    'Motivo: foi detectado PR aberto com conflito no mesmo repositório da issue/composição.',
     'Ação: a responsabilidade atual foi movida para `agent:devops` para que o conflito seja resolvido antes do fluxo continuar.',
+  ].join('\n');
+}
+
+function buildDevopsReleaseComment(issueRef, returnedToDeveloper) {
+  return [
+    '### Fluxo devolvido de DevOps',
+    '',
+    `Issue: ${issueRef}`,
+    'Motivo: não existe mais PR aberto com conflito no mesmo repositório da issue/composição.',
+    returnedToDeveloper
+      ? 'Ação: a responsabilidade foi devolvida para `agent:developer`, porque o próximo passo volta a ser republicar a trilha técnica ou a composição correta.'
+      : 'Ação: o label `agent:devops` foi removido para evitar ownership operacional incorreto enquanto houver apenas assignee humano ativo.',
   ].join('\n');
 }
 
@@ -394,6 +413,11 @@ function serializeItem(item, knownAgentLogins) {
         ref: `${pr.repository.nameWithOwner}#${pr.number}`,
         url: pr.url,
       })),
+    sameRepositoryOpenPullRequests: openPullRequestsInSameRepository(issue).map((pr) => ({
+      ref: `${pr.repository.nameWithOwner}#${pr.number}`,
+      url: pr.url,
+      mergeable: pr.mergeable,
+    })),
   };
 }
 
@@ -451,9 +475,40 @@ async function main() {
 
     if (
       !blockedByUnsupportedCopilot &&
-      (stageLabel || !humanOnlyAssigned) &&
-      hasConflictingPullRequest(issue) &&
-      stageLabel !== AGENT_LABELS.devops
+      status?.toLowerCase() === workStatus.toLowerCase() &&
+      stageLabel === AGENT_LABELS.devops &&
+      !hasConflictingPullRequestInSameRepository(issue)
+    ) {
+      const returnedToDeveloper = !humanOnlyAssigned;
+      const nextLabels = returnedToDeveloper
+        ? [...new Set([...labels.filter((label) => !ALL_AGENT_LABELS.includes(label)), AGENT_LABELS.developer])]
+        : labels.filter((label) => !ALL_AGENT_LABELS.includes(label));
+      const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
+      result.actions.push({
+        type: 'release-devops-without-local-conflict',
+        issue: record.issue,
+        previewLabels: nextLabels,
+        returnedToDeveloper,
+        clearedAgentAssignee: agentAssigned,
+        preservedHumanActorCount: preservedHumanActorIds.length,
+      });
+      if (!dryRun) {
+        if (returnedToDeveloper) {
+          await ensureLabelExists(issue.repository.nameWithOwner, AGENT_LABELS.developer);
+        }
+        await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
+        if (agentAssigned) {
+          await replaceAssignableActors(issue.id, preservedHumanActorIds);
+        }
+        await addIssueComment(issue.id, buildDevopsReleaseComment(issueRef, returnedToDeveloper));
+      }
+      continue;
+    }
+
+    if (
+      !blockedByUnsupportedCopilot &&
+      stageLabel === AGENT_LABELS.qa &&
+      hasConflictingPullRequestInSameRepository(issue)
     ) {
       const nextLabels = [...new Set([...labels.filter((label) => !ALL_AGENT_LABELS.includes(label)), AGENT_LABELS.devops])];
       const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);

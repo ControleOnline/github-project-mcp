@@ -355,6 +355,17 @@ function buildDeveloperSeedComment(issueRef) {
   ].join('\n');
 }
 
+function buildOrphanAgentCleanupComment(issueRef) {
+  return [
+    '### Higienização de ownership técnico',
+    '',
+    `Issue: ${issueRef}`,
+    'Motivo: a task estava em `Work` com assignee técnico do Copilot, mas sem `agent:*` ativo que justificasse execução em andamento.',
+    'Ação: o assignee técnico foi removido para restaurar o estado neutro da fila e evitar que a task fosse tratada como execução ativa sem owner operacional claro.',
+    'Próximo passo: o sincronizador pode semear novamente `agent:developer` na próxima rodada, permitindo captura limpa pelo runner correto.',
+  ].join('\n');
+}
+
 function buildConflictComment(issueRef) {
   return [
     '### Fluxo redirecionado para DevOps',
@@ -534,7 +545,28 @@ async function main() {
       !blockedByUnsupportedCopilot &&
       status?.toLowerCase() === workStatus.toLowerCase() &&
       !stageLabel &&
-      !humanOnlyAssigned
+      agentAssigned
+    ) {
+      const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
+      result.actions.push({
+        type: 'clear-orphan-agent-assignee',
+        issue: record.issue,
+        clearedAgentAssignee: true,
+        preservedHumanActorCount: preservedHumanActorIds.length,
+      });
+      if (!dryRun) {
+        await replaceAssignableActors(issue.id, preservedHumanActorIds);
+        await addIssueComment(issue.id, buildOrphanAgentCleanupComment(issueRef));
+      }
+      continue;
+    }
+
+    if (
+      !blockedByUnsupportedCopilot &&
+      status?.toLowerCase() === workStatus.toLowerCase() &&
+      !stageLabel &&
+      !humanOnlyAssigned &&
+      !agentAssigned
     ) {
       const nextLabels = [...new Set([...labels, AGENT_LABELS.developer])];
       result.actions.push({

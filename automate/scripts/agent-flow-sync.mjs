@@ -139,68 +139,70 @@ async function githubRest(path, options = {}) {
 }
 
 async function getProjectSnapshot(org, projectNumber) {
-  return githubGraphQL(
-    `query($org:String!, $projectNumber:Int!) {
-      organization(login:$org) {
-        projectV2(number:$projectNumber) {
-          id
-          title
-          items(first:100) {
-            nodes {
-              id
-              fieldValues(first:20) {
-                nodes {
-                  ... on ProjectV2ItemFieldSingleSelectValue {
-                    name
-                    field {
-                      ... on ProjectV2SingleSelectField {
-                        id
-                        name
-                      }
+  const query = `query($org:String!, $projectNumber:Int!, $cursor:String) {
+    organization(login:$org) {
+      projectV2(number:$projectNumber) {
+        id
+        title
+        items(first:100, after:$cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            id
+            fieldValues(first:20) {
+              nodes {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                  field {
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
                     }
                   }
                 }
               }
-              content {
-                ... on Issue {
-                  id
-                  number
-                  title
-                  url
-                  state
-                  createdAt
-                  updatedAt
-                  labels(first:20) {
-                    nodes {
-                      name
-                    }
+            }
+            content {
+              ... on Issue {
+                id
+                number
+                title
+                url
+                state
+                createdAt
+                updatedAt
+                labels(first:20) {
+                  nodes {
+                    name
                   }
-                  assignees(first:20) {
-                    nodes {
-                      id
-                      login
-                    }
-                  }
-                  repository {
+                }
+                assignees(first:20) {
+                  nodes {
                     id
-                    nameWithOwner
+                    login
                   }
-                  timelineItems(first:50, itemTypes:[CROSS_REFERENCED_EVENT]) {
-                    nodes {
-                      ... on CrossReferencedEvent {
-                        source {
-                          __typename
-                          ... on PullRequest {
-                            id
-                            number
-                            title
-                            url
-                            state
-                            isDraft
-                            mergeable
-                            repository {
-                              nameWithOwner
-                            }
+                }
+                repository {
+                  id
+                  nameWithOwner
+                }
+                timelineItems(first:50, itemTypes:[CROSS_REFERENCED_EVENT]) {
+                  nodes {
+                    ... on CrossReferencedEvent {
+                      source {
+                        __typename
+                        ... on PullRequest {
+                          id
+                          number
+                          title
+                          url
+                          state
+                          isDraft
+                          mergeable
+                          repository {
+                            nameWithOwner
                           }
                         }
                       }
@@ -212,9 +214,25 @@ async function getProjectSnapshot(org, projectNumber) {
           }
         }
       }
-    }`,
-    { org, projectNumber }
-  );
+    }
+  }`;
+
+  const firstPage = await githubGraphQL(query, { org, projectNumber, cursor: null });
+  const project = firstPage?.organization?.projectV2;
+  if (!project) return firstPage;
+
+  const items = [...(project.items?.nodes || [])];
+  let pageInfo = project.items?.pageInfo;
+
+  while (pageInfo?.hasNextPage && pageInfo.endCursor) {
+    const page = await githubGraphQL(query, { org, projectNumber, cursor: pageInfo.endCursor });
+    const nextItems = page?.organization?.projectV2?.items?.nodes || [];
+    items.push(...nextItems);
+    pageInfo = page?.organization?.projectV2?.items?.pageInfo;
+  }
+
+  project.items.nodes = items;
+  return firstPage;
 }
 
 function getStatusValue(item) {

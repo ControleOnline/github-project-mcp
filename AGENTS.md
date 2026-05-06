@@ -76,11 +76,19 @@ Regras desse supervisor:
 - a primeira responsabilidade dele é detectar tasks em `Done` incompatíveis com o fluxo oficial
 - ao corrigir um estado inválido, ele deve deixar comentário explicando a reversão e o motivo operacional
 
+## Evidência operacional
+
+Quando houver workflow, runner, automação ou execução recente relacionada ao diagnóstico:
+
+- GitHub Actions e seus logs de jobs e steps devem ser tratados como fonte prioritária de evidência operacional
+- não basta olhar issue, PR ou label isoladamente quando existir execução recente verificável
+- antes de concluir que um fluxo está saudável, o agente deve cruzar estado de projeto, PRs, checks e execuções recentes relevantes
+
 ## Publicação
 
 Toda mudança de política, script ou workflow de automação deve ser publicada neste repositório:
 
-https://github.com/ControleOnline/github-project-mcp
+https://github.com/ControleOnline/cto-mcp
 
 ## Fluxos principais
 

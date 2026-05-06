@@ -328,6 +328,14 @@ function retainedHumanActorIds(issue, knownAgentLogins) {
     .map((assignee) => assignee.id);
 }
 
+function technicalAgentLogins(issue, knownAgentLogins) {
+  return [...new Set(
+    (issue.assignees?.nodes || [])
+      .map((assignee) => (assignee?.login || '').trim().toLowerCase())
+      .filter((login) => login && knownAgentLogins.has(login))
+  )];
+}
+
 function getAssignableActor(issue, preferredAgentLogin) {
   return (issue.repository?.suggestedActors?.nodes || []).find(
     (actor) => actor?.login?.toLowerCase() === preferredAgentLogin
@@ -492,6 +500,15 @@ async function replaceIssueLabels(repoFullName, issueNumber, nextLabels) {
   await githubRest(`/repos/${owner}/${repo}/issues/${issueNumber}/labels`, {
     method: 'PUT',
     body: JSON.stringify(nextLabels),
+  });
+}
+
+async function removeIssueAssignees(repoFullName, issueNumber, assignees) {
+  if (!assignees.length) return;
+  const [owner, repo] = repoFullName.split('/');
+  await githubRest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
+    method: 'DELETE',
+    body: JSON.stringify({ assignees }),
   });
 }
 
@@ -716,6 +733,7 @@ async function main() {
       ...new Set([...currentLabels.filter((label) => !ALL_AGENT_LABELS.includes(label)), unsupportedLabel]),
     ];
     const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
+    const technicalAgentAssignees = technicalAgentLogins(issue, knownAgentLogins);
     const nextActorIds = [...new Set([actor.id, ...preservedHumanActorIds])];
 
     result.selectedItem = targetRecord;
@@ -755,11 +773,23 @@ async function main() {
         await ensureLabelExists(issue.repository.nameWithOwner, unsupportedLabel);
         await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, blockedLabels);
         let clearedAgentAssignee = false;
+        const cleanupWarnings = [];
         try {
           await replaceAssignableActors(issue.id, preservedHumanActorIds);
           clearedAgentAssignee = true;
         } catch (cleanupError) {
-          result.assignmentCleanupWarning = cleanupError.message || String(cleanupError || '');
+          cleanupWarnings.push(cleanupError.message || String(cleanupError || ''));
+        }
+        if (technicalAgentAssignees.length > 0) {
+          try {
+            await removeIssueAssignees(issue.repository.nameWithOwner, issue.number, technicalAgentAssignees);
+            clearedAgentAssignee = true;
+          } catch (cleanupError) {
+            cleanupWarnings.push(cleanupError.message || String(cleanupError || ''));
+          }
+        }
+        if (cleanupWarnings.length > 0) {
+          result.assignmentCleanupWarning = cleanupWarnings.join(' | ');
         }
         await addIssueComment(issue.id, buildUnavailableComment(role, issueRef, unsupportedLabel));
         result.assignmentAttempts.push({

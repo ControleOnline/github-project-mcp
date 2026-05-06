@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 const GRAPHQL_API_URL = 'https://api.github.com/graphql';
 const REST_API_URL = 'https://api.github.com';
 const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
+const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
 const ROLE_META = {
   developer: { displayName: 'Developer', label: 'agent:developer' },
   security: { displayName: 'Security', label: 'agent:security' },
@@ -25,6 +26,13 @@ function env(name, fallback = '') {
 
 function getToken() {
   return env('GITHUB_TOKEN') || env('GH_TOKEN');
+}
+
+function parseCsv(value) {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function headers(extra = {}) {
@@ -92,6 +100,24 @@ async function replaceIssueLabels(repoFullName, issueNumber, nextLabels) {
   });
 }
 
+async function replaceAssignableActors(issueId, actorIds) {
+  await githubGraphQL(
+    `mutation($issueId:ID!, $actorIds:[ID!]!) {
+      replaceActorsForAssignable(input: {
+        assignableId: $issueId,
+        actorIds: $actorIds
+      }) {
+        assignable {
+          ... on Issue {
+            id
+          }
+        }
+      }
+    }`,
+    { issueId, actorIds }
+  );
+}
+
 async function addIssueComment(issueId, body) {
   await githubGraphQL(
     `mutation($subjectId:ID!, $body:String!) {
@@ -137,7 +163,7 @@ function buildUnavailableComment(role, issueRef, unsupportedLabel, preferredAgen
     '',
     `Issue: ${issueRef}`,
     `Bloqueio: o repositório alvo não expôs o actor \`${preferredAgentLogin}\` em \`suggestedActors\` e também não havia assignee atual de agent reaproveitável para o papel \`${meta.displayName}\`.`,
-    `Ação: a automação marcou a issue com \`${unsupportedLabel}\` e retirou o label \`${meta.label}\` para evitar looping automático até a habilitação operacional do Copilot agent nesse repositório.`,
+    `Ação: a automação marcou a issue com \`${unsupportedLabel}\`, retirou o label \`${meta.label}\` e tentou remover o assignee técnico do Copilot, preservando assignees humanos quando a API do repositório permitiu.`,
     'Próximo passo: habilitar o Copilot agent no repositório alvo e depois devolver a task para `Work` ou reaplicar o label do agent correto.',
   ].join('\n');
 }
@@ -150,11 +176,23 @@ function shouldSurfaceMissingActor(attempt) {
   );
 }
 
+function retainedHumanActorIdsFromSerialized(detail, knownAgentLogins) {
+  return (detail?.assigneeActors || [])
+    .filter((assignee) => {
+      const login = (assignee?.login || '').trim().toLowerCase();
+      return login && !knownAgentLogins.has(login) && assignee?.id;
+    })
+    .map((assignee) => assignee.id);
+}
+
 async function surfaceMissingActorBlocks(payload) {
   if (payload?.dryRun) return [];
 
   const unsupportedLabel = payload.unsupportedLabel || DEFAULT_UNSUPPORTED_LABEL;
   const preferredAgentLogin = env('AGENT_LOGIN', 'copilot-swe-agent').toLowerCase();
+  const knownAgentLogins = new Set(
+    parseCsv(env('AGENT_KNOWN_LOGINS', DEFAULT_KNOWN_AGENT_LOGINS)).map((login) => login.toLowerCase())
+  );
   const items = [...(payload.candidateItems || []), ...(payload.staleActiveItems || [])];
   const itemMap = new Map(items.map((item) => [item.issue.ref, item]));
   const surfaced = [];
@@ -172,9 +210,19 @@ async function surfaceMissingActorBlocks(payload) {
     const nextLabels = [
       ...new Set([...(detail.labels || []).filter((label) => !ALL_AGENT_LABELS.includes(label)), unsupportedLabel]),
     ];
+    const preservedHumanActorIds = retainedHumanActorIdsFromSerialized(detail, knownAgentLogins);
 
     await ensureLabelExists(repoFullName, unsupportedLabel);
     await replaceIssueLabels(repoFullName, issueNumber, nextLabels);
+
+    let clearedAgentAssignee = false;
+    try {
+      await replaceAssignableActors(detail.issue.id, preservedHumanActorIds);
+      clearedAgentAssignee = true;
+    } catch (error) {
+      attempt.cleanupWarning = `Falha ao limpar assignee técnico automaticamente: ${error.message || error}`;
+    }
+
     await addIssueComment(
       detail.issue.id,
       buildUnavailableComment(payload.role, attempt.issue.ref, unsupportedLabel, preferredAgentLogin)
@@ -182,6 +230,7 @@ async function surfaceMissingActorBlocks(payload) {
 
     attempt.status = 'blocked';
     attempt.reason = `Repositório sem actor atribuível do Copilot cloud agent; issue marcada com ${unsupportedLabel}.`;
+    attempt.cleanupClearedAgentAssignee = clearedAgentAssignee;
     surfaced.push(attempt.issue.ref);
   }
 

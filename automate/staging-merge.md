@@ -13,6 +13,16 @@ Ao receber uma task de `Quality Assurance`:
 - fazer merge em `staging` no modulo dono da alteracao
 - fazer merge em `staging` no projeto principal quando ele compuser a entrega
 
+## Quando conflito pertence a DevOps
+
+Trate conflito de merge como ownership de `DevOps` apenas quando existir PR aberto com conflito no mesmo repositório que compoe a etapa atual da issue.
+
+Exemplos:
+
+- issue no projeto principal com PR agregador aberto e conflitante no mesmo projeto: `DevOps`
+- issue em modulo com PR aberto e conflitante no proprio modulo: `DevOps`
+- issue no projeto principal com conflito apenas em submodulo e sem PR agregador aberto no proprio projeto: ainda nao e trilha de `DevOps`; o correto e devolver para `Developer` republicar a composicao ou a trilha tecnica faltante
+
 ## Criacao de branch
 
 Se `staging` nao existir em repositorio obrigatorio:

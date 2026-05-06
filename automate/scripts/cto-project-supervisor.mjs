@@ -256,6 +256,7 @@ function serializeItem(item, knownAgentLogins, unsupportedLabel) {
   return {
     issue: {
       id: issue.id,
+      repository: issue.repository.nameWithOwner,
       ref: `${issue.repository.nameWithOwner}#${issue.number}`,
       title: issue.title,
       url: issue.url,
@@ -331,6 +332,43 @@ function classifyDoneMismatch(item, knownAgentLogins, unsupportedLabel, workStat
   };
 }
 
+function classifyUnsupportedCopilot(item, knownAgentLogins, unsupportedLabel) {
+  const issue = item.content;
+  if (!issue?.repository?.nameWithOwner) return null;
+  if (issue.state !== 'OPEN') return null;
+  const labels = issueLabels(issue);
+  if (!labels.includes(unsupportedLabel)) return null;
+  return serializeItem(item, knownAgentLogins, unsupportedLabel);
+}
+
+function summarizeUnsupportedCopilot(blockedIssues) {
+  const byRepository = new Map();
+  for (const blocked of blockedIssues) {
+    const repository = blocked.issue.repository;
+    if (!byRepository.has(repository)) {
+      byRepository.set(repository, {
+        repository,
+        issueCount: 0,
+        projectStatuses: new Set(),
+        issueRefs: [],
+      });
+    }
+    const bucket = byRepository.get(repository);
+    bucket.issueCount += 1;
+    if (blocked.currentProjectStatus) bucket.projectStatuses.add(blocked.currentProjectStatus);
+    bucket.issueRefs.push(blocked.issue.ref);
+  }
+
+  return Array.from(byRepository.values())
+    .map((bucket) => ({
+      repository: bucket.repository,
+      issueCount: bucket.issueCount,
+      projectStatuses: Array.from(bucket.projectStatuses).sort(),
+      issueRefs: bucket.issueRefs.sort(),
+    }))
+    .sort((a, b) => a.repository.localeCompare(b.repository));
+}
+
 function writeOutputFile(payload) {
   const outDir = env('CTO_OUTPUT_DIR', '/tmp');
   const outPath = `${outDir}/cto-project-supervisor.json`;
@@ -357,8 +395,12 @@ async function main() {
 
   const items = project.items?.nodes || [];
   const actions = [];
+  const unsupportedCopilotIssues = [];
 
   for (const item of items) {
+    const blocked = classifyUnsupportedCopilot(item, knownAgentLogins, unsupportedLabel);
+    if (blocked) unsupportedCopilotIssues.push(blocked);
+
     const mismatch = classifyDoneMismatch(
       item,
       knownAgentLogins,
@@ -398,12 +440,27 @@ async function main() {
     workStatus,
     inReviewStatus,
     doneStatus,
+    unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
+    unsupportedCopilotByRepository: summarizeUnsupportedCopilot(unsupportedCopilotIssues),
+    unsupportedCopilotIssues,
     actionCount: actions.length,
     actions,
   };
 
   const outPath = writeOutputFile(result);
-  console.log(JSON.stringify({ ok: true, dryRun, actionCount: actions.length, outPath }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        dryRun,
+        unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
+        actionCount: actions.length,
+        outPath,
+      },
+      null,
+      2
+    )
+  );
 }
 
 main().catch((error) => {

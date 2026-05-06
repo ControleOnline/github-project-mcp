@@ -71,66 +71,84 @@ async function githubGraphQL(query, variables = {}) {
 }
 
 async function getProjectSnapshot(org, projectNumber) {
-  return githubGraphQL(
-    `query($org:String!, $projectNumber:Int!) {
-      viewer {
-        login
-      }
-      organization(login:$org) {
-        projectV2(number:$projectNumber) {
-          id
-          title
-          fields(first:50) {
-            nodes {
-              ... on ProjectV2FieldCommon {
+  const query = `query($org:String!, $projectNumber:Int!, $cursor:String) {
+    viewer {
+      login
+    }
+    organization(login:$org) {
+      projectV2(number:$projectNumber) {
+        id
+        title
+        fields(first:50) {
+          nodes {
+            ... on ProjectV2FieldCommon {
+              id
+              name
+            }
+            ... on ProjectV2SingleSelectField {
+              id
+              name
+              options {
                 id
                 name
-              }
-              ... on ProjectV2SingleSelectField {
-                id
-                name
-                options {
-                  id
-                  name
-                }
               }
             }
           }
-          items(first:100) {
-            nodes {
-              id
-              fieldValues(first:20) {
-                nodes {
-                  ... on ProjectV2ItemFieldSingleSelectValue {
-                    name
-                    field {
-                      ... on ProjectV2SingleSelectField {
-                        id
-                        name
-                      }
+        }
+        items(first:100, after:$cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            id
+            fieldValues(first:20) {
+              nodes {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                  field {
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
                     }
                   }
                 }
               }
-              content {
-                ... on Issue {
+            }
+            content {
+              ... on Issue {
+                id
+                number
+                title
+                url
+                repository {
                   id
-                  number
-                  title
-                  url
-                  repository {
-                    id
-                    nameWithOwner
-                  }
+                  nameWithOwner
                 }
               }
             }
           }
         }
       }
-    }`,
-    { org, projectNumber }
-  );
+    }
+  }`;
+
+  const firstPage = await githubGraphQL(query, { org, projectNumber, cursor: null });
+  const project = firstPage?.organization?.projectV2;
+  if (!project) return firstPage;
+
+  const items = [...(project.items?.nodes || [])];
+  let pageInfo = project.items?.pageInfo;
+
+  while (pageInfo?.hasNextPage && pageInfo.endCursor) {
+    const page = await githubGraphQL(query, { org, projectNumber, cursor: pageInfo.endCursor });
+    const nextItems = page?.organization?.projectV2?.items?.nodes || [];
+    items.push(...nextItems);
+    pageInfo = page?.organization?.projectV2?.items?.pageInfo;
+  }
+
+  project.items.nodes = items;
+  return firstPage;
 }
 
 function getStatusField(project) {

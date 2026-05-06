@@ -100,6 +100,15 @@ async function replaceIssueLabels(repoFullName, issueNumber, nextLabels) {
   });
 }
 
+async function removeIssueAssignees(repoFullName, issueNumber, assignees) {
+  if (!assignees.length) return;
+  const [owner, repo] = repoFullName.split('/');
+  await githubRest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
+    method: 'DELETE',
+    body: JSON.stringify({ assignees }),
+  });
+}
+
 async function replaceAssignableActors(issueId, actorIds) {
   await githubGraphQL(
     `mutation($issueId:ID!, $actorIds:[ID!]!) {
@@ -185,6 +194,14 @@ function retainedHumanActorIdsFromSerialized(detail, knownAgentLogins) {
     .map((assignee) => assignee.id);
 }
 
+function technicalAgentLoginsFromSerialized(detail, knownAgentLogins) {
+  return [...new Set(
+    (detail?.assigneeActors || [])
+      .map((assignee) => (assignee?.login || '').trim().toLowerCase())
+      .filter((login) => login && knownAgentLogins.has(login))
+  )];
+}
+
 async function surfaceMissingActorBlocks(payload) {
   if (payload?.dryRun) return [];
 
@@ -211,16 +228,31 @@ async function surfaceMissingActorBlocks(payload) {
       ...new Set([...(detail.labels || []).filter((label) => !ALL_AGENT_LABELS.includes(label)), unsupportedLabel]),
     ];
     const preservedHumanActorIds = retainedHumanActorIdsFromSerialized(detail, knownAgentLogins);
+    const technicalAgentLogins = technicalAgentLoginsFromSerialized(detail, knownAgentLogins);
 
     await ensureLabelExists(repoFullName, unsupportedLabel);
     await replaceIssueLabels(repoFullName, issueNumber, nextLabels);
 
     let clearedAgentAssignee = false;
+    const cleanupWarnings = [];
     try {
       await replaceAssignableActors(detail.issue.id, preservedHumanActorIds);
       clearedAgentAssignee = true;
     } catch (error) {
-      attempt.cleanupWarning = `Falha ao limpar assignee técnico automaticamente: ${error.message || error}`;
+      cleanupWarnings.push(`Falha ao limpar assignee técnico automaticamente por GraphQL: ${error.message || error}`);
+    }
+
+    if (technicalAgentLogins.length > 0) {
+      try {
+        await removeIssueAssignees(repoFullName, issueNumber, technicalAgentLogins);
+        clearedAgentAssignee = true;
+      } catch (error) {
+        cleanupWarnings.push(`Falha ao limpar assignee técnico por REST: ${error.message || error}`);
+      }
+    }
+
+    if (cleanupWarnings.length > 0) {
+      attempt.cleanupWarning = cleanupWarnings.join(' | ');
     }
 
     await addIssueComment(

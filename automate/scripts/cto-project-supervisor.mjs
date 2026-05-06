@@ -8,6 +8,7 @@ import {
 } from '../../src/retry.js';
 
 const GITHUB_API_URL = 'https://api.github.com/graphql';
+const REST_API_URL = 'https://api.github.com';
 const ALL_AGENT_LABELS = ['agent:developer', 'agent:security', 'agent:qa', 'agent:devops'];
 const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
 const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
@@ -79,6 +80,53 @@ async function githubGraphQL(query, variables = {}) {
       return json.data;
     },
     { label: 'GitHub GraphQL CTO supervisor', ...RETRY }
+  );
+}
+
+async function githubRest(path, options = {}) {
+  const token = getToken();
+  if (!token) throw new Error('Missing GitHub token. Set GITHUB_TOKEN or GH_TOKEN.');
+
+  return retryAsync(
+    async () => {
+      let response;
+      try {
+        response = await fetch(`${REST_API_URL}${path}`, {
+          ...options,
+          headers: {
+            Accept: 'application/vnd.github+json',
+            Authorization: `Bearer ${token}`,
+            'X-GitHub-Api-Version': '2022-11-28',
+            'Content-Type': 'application/json',
+            'User-Agent': 'controleonline-cto-supervisor',
+            ...(options.headers || {}),
+          },
+        });
+      } catch (error) {
+        throw retryableError(`GitHub REST request failed: ${error.message || error}`);
+      }
+
+      const text = await response.text();
+      let body;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        const message = JSON.stringify({ status: response.status, path, body: text }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      if (!response.ok) {
+        const message = JSON.stringify({ status: response.status, path, body }, null, 2);
+        if (isRetriableStatus(response.status)) {
+          throw retryableError(message);
+        }
+        throw new Error(message);
+      }
+      return body;
+    },
+    { label: `GitHub REST CTO supervisor ${path}`, ...RETRY }
   );
 }
 
@@ -207,6 +255,23 @@ function assigneeLogins(issue) {
     .filter(Boolean);
 }
 
+function retainedHumanActorIds(issue, knownAgentLogins) {
+  return (issue.assignees?.nodes || [])
+    .filter((assignee) => {
+      const login = (assignee?.login || '').trim().toLowerCase();
+      return login && !knownAgentLogins.has(login) && assignee?.id;
+    })
+    .map((assignee) => assignee.id);
+}
+
+function technicalAgentLogins(issue, knownAgentLogins) {
+  return [...new Set(
+    (issue.assignees?.nodes || [])
+      .map((assignee) => (assignee?.login || '').trim().toLowerCase())
+      .filter((login) => login && knownAgentLogins.has(login))
+  )];
+}
+
 function normalizePullRequests(issue) {
   const seen = new Set();
   const pullRequests = [];
@@ -260,6 +325,65 @@ async function addIssueComment(issueId, body) {
   );
 }
 
+async function replaceAssignableActors(issueId, actorIds) {
+  await githubGraphQL(
+    `mutation($issueId:ID!, $actorIds:[ID!]!) {
+      replaceActorsForAssignable(input: {
+        assignableId: $issueId,
+        actorIds: $actorIds
+      }) {
+        assignable {
+          ... on Issue {
+            id
+          }
+        }
+      }
+    }`,
+    { issueId, actorIds }
+  );
+}
+
+async function removeIssueAssignees(repoFullName, issueNumber, assignees) {
+  if (!assignees.length) return;
+  const [owner, repo] = repoFullName.split('/');
+  await githubRest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
+    method: 'DELETE',
+    body: JSON.stringify({ assignees }),
+  });
+}
+
+async function cleanupBlockedAgentAssignee(issue, knownAgentLogins) {
+  const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
+  const technicalAssignees = technicalAgentLogins(issue, knownAgentLogins);
+  const warnings = [];
+  let graphQlCleared = false;
+  let restCleared = false;
+
+  try {
+    await replaceAssignableActors(issue.id, preservedHumanActorIds);
+    graphQlCleared = true;
+  } catch (error) {
+    warnings.push(`Falha GraphQL ao limpar actor técnico: ${error.message || error}`);
+  }
+
+  if (technicalAssignees.length > 0) {
+    try {
+      await removeIssueAssignees(issue.repository.nameWithOwner, issue.number, technicalAssignees);
+      restCleared = true;
+    } catch (error) {
+      warnings.push(`Falha REST ao remover assignee técnico: ${error.message || error}`);
+    }
+  }
+
+  return {
+    technicalAssignees,
+    graphQlCleared,
+    restCleared,
+    cleared: graphQlCleared || restCleared,
+    warnings,
+  };
+}
+
 function buildComment(issueRef, fromStatus, targetStatus, reasons) {
   return [
     '### Auditoria do CTO - correção estrutural de coluna',
@@ -284,6 +408,9 @@ function ageHours(value) {
 function serializeItem(item, knownAgentLogins, unsupportedLabel) {
   const issue = item.content;
   const labels = issueLabels(issue);
+  const assignees = assigneeLogins(issue);
+  const technicalAssignees = technicalAgentLogins(issue, knownAgentLogins);
+  const humanAssignees = assignees.filter((login) => !knownAgentLogins.has(login));
   const pullRequests = normalizePullRequests(issue);
   return {
     issue: {
@@ -300,10 +427,12 @@ function serializeItem(item, knownAgentLogins, unsupportedLabel) {
     projectItemId: item.id,
     currentProjectStatus: getStatusValue(item),
     labels,
-    assignees: assigneeLogins(issue),
+    assignees,
+    humanAssignees,
+    technicalAgentAssignees: technicalAssignees,
     hasAgentLabel: labels.some((label) => ALL_AGENT_LABELS.includes(label)),
     hasUnsupportedLabel: labels.includes(unsupportedLabel),
-    hasKnownAgentAssignee: assigneeLogins(issue).some((login) => knownAgentLogins.has(login)),
+    hasKnownAgentAssignee: technicalAssignees.length > 0,
     pullRequests: pullRequests.map((pr) => ({
       ref: `${pr.repository?.nameWithOwner || 'unknown'}#${pr.number}`,
       repository: pr.repository?.nameWithOwner || 'unknown',
@@ -388,6 +517,7 @@ function summarizeUnsupportedCopilot(blockedIssues) {
         oldestUpdatedAt: null,
         newestUpdatedAt: null,
         openPullRequestCount: 0,
+        residualTechnicalAssigneeCount: 0,
       });
     }
     const bucket = byRepository.get(repository);
@@ -401,6 +531,7 @@ function summarizeUnsupportedCopilot(blockedIssues) {
       bucket.newestUpdatedAt = blocked.issue.updatedAt;
     }
     bucket.openPullRequestCount += blocked.pullRequests.filter((pr) => pr.state === 'OPEN').length;
+    bucket.residualTechnicalAssigneeCount += blocked.technicalAgentAssignees.length > 0 ? 1 : 0;
   }
 
   return Array.from(byRepository.values())
@@ -414,6 +545,7 @@ function summarizeUnsupportedCopilot(blockedIssues) {
       newestUpdatedAt: bucket.newestUpdatedAt,
       newestAgeHours: ageHours(bucket.newestUpdatedAt),
       openPullRequestCount: bucket.openPullRequestCount,
+      residualTechnicalAssigneeCount: bucket.residualTechnicalAssigneeCount,
     }))
     .sort((a, b) => a.repository.localeCompare(b.repository));
 }
@@ -434,6 +566,7 @@ function summarizePriorityRepositories(priorityRepositories, unsupportedSummary,
       oldestAgeHours: blocked?.oldestAgeHours ?? null,
       newestAgeHours: blocked?.newestAgeHours ?? null,
       openPullRequestCount: blocked?.openPullRequestCount || 0,
+      residualTechnicalAssigneeCount: blocked?.residualTechnicalAssigneeCount || 0,
       projectStatuses: blocked?.projectStatuses || [],
       issueRefs: blocked?.issueRefs || [],
     };
@@ -475,7 +608,27 @@ async function main() {
 
   for (const item of items) {
     const blocked = classifyUnsupportedCopilot(item, knownAgentLogins, unsupportedLabel);
-    if (blocked) unsupportedCopilotIssues.push(blocked);
+    if (blocked) {
+      unsupportedCopilotIssues.push(blocked);
+      if (blocked.hasKnownAgentAssignee) {
+        const action = {
+          type: 'cleanup-blocked-agent-assignee',
+          issue: blocked.issue,
+          currentProjectStatus: blocked.currentProjectStatus,
+          technicalAgentAssignees: blocked.technicalAgentAssignees,
+        };
+        actions.push(action);
+        if (!dryRun) {
+          const cleanup = await cleanupBlockedAgentAssignee(item.content, knownAgentLogins);
+          action.cleanupClearedAgentAssignee = cleanup.cleared;
+          action.graphQlCleared = cleanup.graphQlCleared;
+          action.restCleared = cleanup.restCleared;
+          if (cleanup.warnings.length > 0) {
+            action.cleanupWarnings = cleanup.warnings;
+          }
+        }
+      }
+    }
 
     const mismatch = classifyDoneMismatch(
       item,

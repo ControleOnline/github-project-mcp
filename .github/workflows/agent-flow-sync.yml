@@ -5,6 +5,20 @@ env:
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/developer-runner.yml'
+      - '.github/workflows/qa-runner.yml'
+      - '.github/workflows/security-runner.yml'
+      - '.github/workflows/devops-runner.yml'
+      - '.github/workflows/agent-flow-sync.yml'
+      - '.github/workflows/cto-runner.yml'
+      - 'automate/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
   schedule:
     - cron: '*/15 * * * *'
 

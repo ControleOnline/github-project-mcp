@@ -15,6 +15,7 @@ const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
 const DEFAULT_PRIORITY_REPOSITORIES =
   'ControleOnline/app-community,ControleOnline/api-community,ControleOnline/api-whatsapp';
 const DEFAULT_STALE_HOURS = '24';
+const DEFAULT_STALE_DRAFT_HOURS = '24';
 const RETRY = githubRetryConfig('CTO');
 
 function env(name, fallback = '') {
@@ -199,6 +200,9 @@ async function getProjectSnapshot(org, projectNumber) {
                           state
                           isDraft
                           mergeable
+                          reviewDecision
+                          createdAt
+                          updatedAt
                           mergedAt
                           repository {
                             nameWithOwner
@@ -288,6 +292,18 @@ function normalizePullRequests(issue) {
 
 function isOpenPullRequest(pr) {
   return pr?.state === 'OPEN';
+}
+
+function mergeConflictForPr(pr) {
+  return pr?.mergeable === false || pr?.mergeable === 'CONFLICTING';
+}
+
+function reviewPendingForPr(pr) {
+  return isOpenPullRequest(pr) && !pr?.isDraft && pr?.reviewDecision !== 'APPROVED';
+}
+
+function openPullRequestsForSnapshot(snapshot) {
+  return (snapshot?.pullRequests || []).filter((pr) => pr?.state === 'OPEN');
 }
 
 function projectStatusOptionId(project, statusName) {
@@ -436,10 +452,15 @@ function serializeItem(item, knownAgentLogins, unsupportedLabel) {
     pullRequests: pullRequests.map((pr) => ({
       ref: `${pr.repository?.nameWithOwner || 'unknown'}#${pr.number}`,
       repository: pr.repository?.nameWithOwner || 'unknown',
+      title: pr.title,
       url: pr.url,
       state: pr.state,
       isDraft: Boolean(pr.isDraft),
       mergeable: pr.mergeable,
+      reviewDecision: pr.reviewDecision,
+      createdAt: pr.createdAt,
+      updatedAt: pr.updatedAt,
+      ageHours: ageHours(pr.updatedAt),
       mergedAt: pr.mergedAt,
     })),
   };
@@ -530,7 +551,7 @@ function summarizeUnsupportedCopilot(blockedIssues) {
     if (!bucket.newestUpdatedAt || Date.parse(blocked.issue.updatedAt) > Date.parse(bucket.newestUpdatedAt)) {
       bucket.newestUpdatedAt = blocked.issue.updatedAt;
     }
-    bucket.openPullRequestCount += blocked.pullRequests.filter((pr) => pr.state === 'OPEN').length;
+    bucket.openPullRequestCount += openPullRequestsForSnapshot(blocked).length;
     bucket.residualTechnicalAssigneeCount += blocked.technicalAgentAssignees.length > 0 ? 1 : 0;
   }
 
@@ -554,23 +575,67 @@ function normalizePriorityRepositories(org, repositories) {
   return repositories.map((repository) => (repository.includes('/') ? repository : `${org}/${repository}`));
 }
 
-function summarizePriorityRepositories(priorityRepositories, unsupportedSummary, staleHours) {
-  const blockedMap = new Map(unsupportedSummary.map((entry) => [entry.repository, entry]));
+function summarizePriorityRepositories(priorityRepositories, blockedIssues, staleHours, staleDraftHours) {
   return priorityRepositories.map((repository) => {
-    const blocked = blockedMap.get(repository);
+    const repositoryIssues = blockedIssues.filter((entry) => entry.issue.repository === repository);
+    const openPullRequests = repositoryIssues.flatMap((entry) => openPullRequestsForSnapshot(entry));
+    const draftPullRequests = openPullRequests.filter((pr) => pr.isDraft);
+    const staleDraftPullRequests = draftPullRequests.filter(
+      (pr) => pr.ageHours !== null && pr.ageHours >= staleDraftHours
+    );
+    const conflictingPullRequests = openPullRequests.filter((pr) => mergeConflictForPr(pr));
+    const reviewPendingPullRequests = openPullRequests.filter((pr) => reviewPendingForPr(pr));
+    const projectStatuses = [...new Set(repositoryIssues.map((entry) => entry.currentProjectStatus).filter(Boolean))].sort();
+    const oldestUpdatedAt = repositoryIssues
+      .map((entry) => entry.issue.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => Date.parse(a) - Date.parse(b))[0] || null;
+    const newestUpdatedAt = repositoryIssues
+      .map((entry) => entry.issue.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => Date.parse(b) - Date.parse(a))[0] || null;
+
     return {
       repository,
-      state: blocked ? 'blocked' : 'clear',
-      issueCount: blocked?.issueCount || 0,
-      stale: Boolean(blocked && blocked.oldestAgeHours !== null && blocked.oldestAgeHours >= staleHours),
-      oldestAgeHours: blocked?.oldestAgeHours ?? null,
-      newestAgeHours: blocked?.newestAgeHours ?? null,
-      openPullRequestCount: blocked?.openPullRequestCount || 0,
-      residualTechnicalAssigneeCount: blocked?.residualTechnicalAssigneeCount || 0,
-      projectStatuses: blocked?.projectStatuses || [],
-      issueRefs: blocked?.issueRefs || [],
+      state: repositoryIssues.length > 0 ? 'blocked' : 'clear',
+      issueCount: repositoryIssues.length,
+      stale: Boolean(oldestUpdatedAt && ageHours(oldestUpdatedAt) !== null && ageHours(oldestUpdatedAt) >= staleHours),
+      oldestAgeHours: oldestUpdatedAt ? ageHours(oldestUpdatedAt) : null,
+      newestAgeHours: newestUpdatedAt ? ageHours(newestUpdatedAt) : null,
+      openPullRequestCount: openPullRequests.length,
+      draftPullRequestCount: draftPullRequests.length,
+      staleDraftPullRequestCount: staleDraftPullRequests.length,
+      conflictingPullRequestCount: conflictingPullRequests.length,
+      reviewPendingPullRequestCount: reviewPendingPullRequests.length,
+      residualTechnicalAssigneeCount: repositoryIssues.filter((entry) => entry.technicalAgentAssignees.length > 0).length,
+      projectStatuses,
+      issueRefs: repositoryIssues.map((entry) => entry.issue.ref).sort(),
+      openPullRequestRefs: openPullRequests.map((pr) => pr.ref).sort(),
+      staleDraftPullRequestRefs: staleDraftPullRequests.map((pr) => pr.ref).sort(),
+      conflictingPullRequestRefs: conflictingPullRequests.map((pr) => pr.ref).sort(),
+      reviewPendingPullRequestRefs: reviewPendingPullRequests.map((pr) => pr.ref).sort(),
     };
   });
+}
+
+function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
+  return priorityRepositoryHealth
+    .filter(
+      (entry) =>
+        entry.state === 'blocked' &&
+        (
+          entry.staleDraftPullRequestCount > 0 ||
+          entry.conflictingPullRequestCount > 0 ||
+          entry.reviewPendingPullRequestCount > 0
+        )
+    )
+    .map((entry) => ({
+      repository: entry.repository,
+      issueRefs: entry.issueRefs,
+      staleDraftPullRequestRefs: entry.staleDraftPullRequestRefs,
+      conflictingPullRequestRefs: entry.conflictingPullRequestRefs,
+      reviewPendingPullRequestRefs: entry.reviewPendingPullRequestRefs,
+    }));
 }
 
 function writeOutputFile(payload) {
@@ -590,6 +655,10 @@ async function main() {
   const doneStatus = env('CTO_DONE_STATUS', 'Done');
   const unsupportedLabel = env('CTO_UNSUPPORTED_LABEL', DEFAULT_UNSUPPORTED_LABEL);
   const staleHours = parsePositiveNumber(env('CTO_BLOCKED_STALE_HOURS', DEFAULT_STALE_HOURS), 24);
+  const staleDraftHours = parsePositiveNumber(
+    env('CTO_PRIORITY_PR_STALE_HOURS', DEFAULT_STALE_DRAFT_HOURS),
+    24
+  );
   const priorityRepositories = normalizePriorityRepositories(
     org,
     parseCsv(env('CTO_PRIORITY_REPOSITORIES', DEFAULT_PRIORITY_REPOSITORIES))
@@ -660,9 +729,11 @@ async function main() {
   const unsupportedCopilotByRepository = summarizeUnsupportedCopilot(unsupportedCopilotIssues);
   const priorityRepositoryHealth = summarizePriorityRepositories(
     priorityRepositories,
-    unsupportedCopilotByRepository,
-    staleHours
+    unsupportedCopilotIssues,
+    staleHours,
+    staleDraftHours
   );
+  const priorityPullRequestAttention = buildPriorityPullRequestAttention(priorityRepositoryHealth);
 
   const result = {
     generatedAt: new Date().toISOString(),
@@ -676,12 +747,15 @@ async function main() {
     workStatus,
     inReviewStatus,
     doneStatus,
+    staleDraftHours,
     unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
     unsupportedCopilotByRepository,
     unsupportedCopilotIssues,
     priorityRepositories,
     blockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.state === 'blocked').length,
     staleBlockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.stale).length,
+    priorityPullRequestAttentionCount: priorityPullRequestAttention.length,
+    priorityPullRequestAttention,
     priorityRepositoryHealth,
     actionCount: actions.length,
     actions,
@@ -696,6 +770,7 @@ async function main() {
         unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
         blockedPriorityRepositoryCount: result.blockedPriorityRepositoryCount,
         staleBlockedPriorityRepositoryCount: result.staleBlockedPriorityRepositoryCount,
+        priorityPullRequestAttentionCount: result.priorityPullRequestAttentionCount,
         actionCount: actions.length,
         outPath,
       },

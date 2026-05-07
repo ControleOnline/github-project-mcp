@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import {
   githubRetryConfig,
@@ -28,6 +29,14 @@ const LABEL_META = {
     color: 'd4a72c',
     description: 'Copilot cloud agent nao habilitado no repositorio alvo',
   },
+};
+const COMMENT_MARKER_PREFIX = 'cto-mcp-flow-sync';
+const COMMENT_TYPES = {
+  seedDeveloper: 'seed-developer',
+  clearOrphanAgentAssignee: 'clear-orphan-agent-assignee',
+  routeConflictToDevops: 'route-conflict-to-devops',
+  releaseDevops: 'release-devops',
+  cleanupInReview: 'cleanup-in-review',
 };
 
 function env(name, fallback = '') {
@@ -173,6 +182,15 @@ async function getProjectSnapshot(org, projectNumber) {
                 state
                 createdAt
                 updatedAt
+                comments(last:10) {
+                  nodes {
+                    body
+                    createdAt
+                    author {
+                      login
+                    }
+                  }
+                }
                 labels(first:20) {
                   nodes {
                     name
@@ -312,6 +330,23 @@ function hasConflictingPullRequestInSameRepository(issue) {
   return openPullRequestsInSameRepository(issue).some((pr) => isConflictingOrBlockedMergeable(pr?.mergeable));
 }
 
+function recentComments(issue) {
+  return issue.comments?.nodes || [];
+}
+
+function commentSignature(payload) {
+  return crypto.createHash('sha1').update(JSON.stringify(payload)).digest('hex').slice(0, 12);
+}
+
+function buildCommentMarker(type, signature) {
+  return `<!-- ${COMMENT_MARKER_PREFIX}:${type}:${signature} -->`;
+}
+
+function hasRecentCommentMarker(issue, type, signature) {
+  const marker = buildCommentMarker(type, signature);
+  return recentComments(issue).some((comment) => (comment?.body || '').includes(marker));
+}
+
 async function ensureLabelExists(repoFullName, labelName) {
   const [owner, repo] = repoFullName.split('/');
   const meta = LABEL_META[labelName] || { color: '1f6feb', description: labelName };
@@ -371,17 +406,19 @@ async function addIssueComment(issueId, body) {
   );
 }
 
-function buildDeveloperSeedComment(issueRef) {
+function buildDeveloperSeedComment(issueRef, signature) {
   return [
     '### Fluxo iniciado automaticamente',
     '',
     `Issue: ${issueRef}`,
     'Ação: a task entrou sem `agent:*` em `Work`, então o fluxo oficial apontou a responsabilidade inicial para `agent:developer`.',
     'Próximo passo: o runner de `Developer` fará a captura quando não houver outra execução ativa do mesmo agent.',
+    '',
+    buildCommentMarker(COMMENT_TYPES.seedDeveloper, signature),
   ].join('\n');
 }
 
-function buildOrphanAgentCleanupComment(issueRef) {
+function buildOrphanAgentCleanupComment(issueRef, signature) {
   return [
     '### Higienização de ownership técnico',
     '',
@@ -389,20 +426,24 @@ function buildOrphanAgentCleanupComment(issueRef) {
     'Motivo: a task estava em `Work` com assignee técnico do Copilot, mas sem `agent:*` ativo que justificasse execução em andamento.',
     'Ação: o assignee técnico foi removido para restaurar o estado neutro da fila e evitar que a task fosse tratada como execução ativa sem owner operacional claro.',
     'Próximo passo: o sincronizador pode semear novamente `agent:developer` na próxima rodada, permitindo captura limpa pelo runner correto.',
+    '',
+    buildCommentMarker(COMMENT_TYPES.clearOrphanAgentAssignee, signature),
   ].join('\n');
 }
 
-function buildConflictComment(issueRef) {
+function buildConflictComment(issueRef, signature) {
   return [
     '### Fluxo redirecionado para DevOps',
     '',
     `Issue: ${issueRef}`,
     'Motivo: foi detectado PR aberto com conflito no mesmo repositório da issue/composição.',
     'Ação: a responsabilidade atual foi movida para `agent:devops` para que o conflito seja resolvido antes do fluxo continuar.',
+    '',
+    buildCommentMarker(COMMENT_TYPES.routeConflictToDevops, signature),
   ].join('\n');
 }
 
-function buildDevopsReleaseComment(issueRef, returnedToDeveloper) {
+function buildDevopsReleaseComment(issueRef, returnedToDeveloper, signature) {
   return [
     '### Fluxo devolvido de DevOps',
     '',
@@ -411,15 +452,19 @@ function buildDevopsReleaseComment(issueRef, returnedToDeveloper) {
     returnedToDeveloper
       ? 'Ação: a responsabilidade foi devolvida para `agent:developer`, porque o próximo passo volta a ser republicar a trilha técnica ou a composição correta.'
       : 'Ação: o label `agent:devops` foi removido para evitar ownership operacional incorreto enquanto houver apenas assignee humano ativo.',
+    '',
+    buildCommentMarker(COMMENT_TYPES.releaseDevops, signature),
   ].join('\n');
 }
 
-function buildInReviewCleanupComment(issueRef) {
+function buildInReviewCleanupComment(issueRef, signature) {
   return [
     '### Limpeza final de fluxo',
     '',
     `Issue: ${issueRef}`,
     'Ação: a task já está em `In Review`, então os labels `agent:*` e o assignee técnico do Copilot foram removidos para deixar o estado final coerente.',
+    '',
+    buildCommentMarker(COMMENT_TYPES.cleanupInReview, signature),
   ].join('\n');
 }
 
@@ -529,14 +574,24 @@ async function main() {
         ? [...new Set([...labels.filter((label) => !ALL_AGENT_LABELS.includes(label)), AGENT_LABELS.developer])]
         : labels.filter((label) => !ALL_AGENT_LABELS.includes(label));
       const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
-      result.actions.push({
+      const signature = commentSignature({
+        type: COMMENT_TYPES.releaseDevops,
+        issueRef,
+        returnedToDeveloper,
+        nextLabels: [...nextLabels].sort(),
+        sameRepositoryOpenPullRequests: record.sameRepositoryOpenPullRequests,
+      });
+      const duplicateComment = hasRecentCommentMarker(issue, COMMENT_TYPES.releaseDevops, signature);
+      const action = {
         type: 'release-devops-without-local-conflict',
         issue: record.issue,
         previewLabels: nextLabels,
         returnedToDeveloper,
         clearedAgentAssignee: agentAssigned,
         preservedHumanActorCount: preservedHumanActorIds.length,
-      });
+        skippedDuplicateComment: duplicateComment,
+      };
+      result.actions.push(action);
       if (!dryRun) {
         if (returnedToDeveloper) {
           await ensureLabelExists(issue.repository.nameWithOwner, AGENT_LABELS.developer);
@@ -545,7 +600,9 @@ async function main() {
         if (agentAssigned) {
           await replaceAssignableActors(issue.id, preservedHumanActorIds);
         }
-        await addIssueComment(issue.id, buildDevopsReleaseComment(issueRef, returnedToDeveloper));
+        if (!duplicateComment) {
+          await addIssueComment(issue.id, buildDevopsReleaseComment(issueRef, returnedToDeveloper, signature));
+        }
       }
       continue;
     }
@@ -557,20 +614,31 @@ async function main() {
     ) {
       const nextLabels = [...new Set([...labels.filter((label) => !ALL_AGENT_LABELS.includes(label)), AGENT_LABELS.devops])];
       const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
-      result.actions.push({
+      const signature = commentSignature({
+        type: COMMENT_TYPES.routeConflictToDevops,
+        issueRef,
+        nextLabels: [...nextLabels].sort(),
+        conflictingPullRequests: record.conflictingPullRequests,
+      });
+      const duplicateComment = hasRecentCommentMarker(issue, COMMENT_TYPES.routeConflictToDevops, signature);
+      const action = {
         type: 'route-conflict-to-devops',
         issue: record.issue,
         previewLabels: nextLabels,
         clearedAgentAssignee: agentAssigned,
         preservedHumanActorCount: preservedHumanActorIds.length,
-      });
+        skippedDuplicateComment: duplicateComment,
+      };
+      result.actions.push(action);
       if (!dryRun) {
         await ensureLabelExists(issue.repository.nameWithOwner, AGENT_LABELS.devops);
         await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
         if (agentAssigned) {
           await replaceAssignableActors(issue.id, preservedHumanActorIds);
         }
-        await addIssueComment(issue.id, buildConflictComment(issueRef));
+        if (!duplicateComment) {
+          await addIssueComment(issue.id, buildConflictComment(issueRef, signature));
+        }
       }
       continue;
     }
@@ -582,15 +650,26 @@ async function main() {
       agentAssigned
     ) {
       const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
-      result.actions.push({
+      const signature = commentSignature({
+        type: COMMENT_TYPES.clearOrphanAgentAssignee,
+        issueRef,
+        assignees: record.assignees,
+        preservedHumanActorIds,
+      });
+      const duplicateComment = hasRecentCommentMarker(issue, COMMENT_TYPES.clearOrphanAgentAssignee, signature);
+      const action = {
         type: 'clear-orphan-agent-assignee',
         issue: record.issue,
         clearedAgentAssignee: true,
         preservedHumanActorCount: preservedHumanActorIds.length,
-      });
+        skippedDuplicateComment: duplicateComment,
+      };
+      result.actions.push(action);
       if (!dryRun) {
         await replaceAssignableActors(issue.id, preservedHumanActorIds);
-        await addIssueComment(issue.id, buildOrphanAgentCleanupComment(issueRef));
+        if (!duplicateComment) {
+          await addIssueComment(issue.id, buildOrphanAgentCleanupComment(issueRef, signature));
+        }
       }
       continue;
     }
@@ -619,15 +698,26 @@ async function main() {
       !agentAssigned
     ) {
       const nextLabels = [...new Set([...labels, AGENT_LABELS.developer])];
-      result.actions.push({
+      const signature = commentSignature({
+        type: COMMENT_TYPES.seedDeveloper,
+        issueRef,
+        nextLabels: [...nextLabels].sort(),
+        status,
+      });
+      const duplicateComment = hasRecentCommentMarker(issue, COMMENT_TYPES.seedDeveloper, signature);
+      const action = {
         type: 'seed-developer',
         issue: record.issue,
         previewLabels: nextLabels,
-      });
+        skippedDuplicateComment: duplicateComment,
+      };
+      result.actions.push(action);
       if (!dryRun) {
         await ensureLabelExists(issue.repository.nameWithOwner, AGENT_LABELS.developer);
         await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
-        await addIssueComment(issue.id, buildDeveloperSeedComment(issueRef));
+        if (!duplicateComment) {
+          await addIssueComment(issue.id, buildDeveloperSeedComment(issueRef, signature));
+        }
       }
       continue;
     }
@@ -635,19 +725,30 @@ async function main() {
     if (status?.toLowerCase() === inReviewStatus.toLowerCase() && (stageLabel || agentAssigned)) {
       const nextLabels = labels.filter((label) => !ALL_AGENT_LABELS.includes(label));
       const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
-      result.actions.push({
+      const signature = commentSignature({
+        type: COMMENT_TYPES.cleanupInReview,
+        issueRef,
+        nextLabels,
+        clearedAgentAssignee: agentAssigned,
+      });
+      const duplicateComment = hasRecentCommentMarker(issue, COMMENT_TYPES.cleanupInReview, signature);
+      const action = {
         type: 'cleanup-in-review',
         issue: record.issue,
         previewLabels: nextLabels,
         clearedAgentAssignee: agentAssigned,
         preservedHumanActorCount: preservedHumanActorIds.length,
-      });
+        skippedDuplicateComment: duplicateComment,
+      };
+      result.actions.push(action);
       if (!dryRun) {
         await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
         if (agentAssigned) {
           await replaceAssignableActors(issue.id, preservedHumanActorIds);
         }
-        await addIssueComment(issue.id, buildInReviewCleanupComment(issueRef));
+        if (!duplicateComment) {
+          await addIssueComment(issue.id, buildInReviewCleanupComment(issueRef, signature));
+        }
       }
     }
   }

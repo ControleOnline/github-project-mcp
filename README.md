@@ -77,6 +77,7 @@ Fluxo esperado:
 12. Só usar coluna para o passo final de `DevOps` -> `In Review`.
 13. Issue bloqueada por `ops:copilot-unavailable` que já tenha PR aberto vinculado não deve ser tratada como fila virgem de `Developer`; nesse caso a leitura correta passa a ser backlog de review ou composição até que a trilha de PR seja concluída ou descartada.
 14. O supervisor do CTO audita os repositórios prioritários também pela saúde observável de GitHub Actions; se existir workflow versionado em `.github/workflows/`, mas o catálogo de Actions continuar vazio ou indisponível, o repositório deve ser tratado como bloqueio de plataforma ou onboarding.
+15. Os runners centrais usam `concurrency` por workflow e branch para serializar execuções sobrepostas do mesmo fluxo, evitando comentário duplicado, disputa de mutação e leitura inconsistente da mesma fila quando coincidem `schedule`, `push` e reexecução manual.
 
 A retomada automática evita lock indefinido da fila do `Developer` quando uma execução antiga fica parada ou quando a issue é devolvida manualmente sem limpeza operacional completa.
 

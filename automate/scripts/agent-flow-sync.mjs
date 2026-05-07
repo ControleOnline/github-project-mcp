@@ -304,8 +304,12 @@ function openPullRequestsInSameRepository(issue) {
   return openPullRequests(issue).filter((pr) => pr?.repository?.nameWithOwner === repoFullName);
 }
 
+function isConflictingOrBlockedMergeable(mergeable) {
+  return mergeable === false || mergeable === 'CONFLICTING';
+}
+
 function hasConflictingPullRequestInSameRepository(issue) {
-  return openPullRequestsInSameRepository(issue).some((pr) => pr?.mergeable === 'CONFLICTING');
+  return openPullRequestsInSameRepository(issue).some((pr) => isConflictingOrBlockedMergeable(pr?.mergeable));
 }
 
 async function ensureLabelExists(repoFullName, labelName) {
@@ -448,10 +452,11 @@ function serializeItem(item, knownAgentLogins) {
         mergeable: pr.mergeable,
       })),
     conflictingPullRequests: pullRequests
-      .filter((pr) => pr?.state === 'OPEN' && pr?.mergeable === 'CONFLICTING')
+      .filter((pr) => pr?.state === 'OPEN' && isConflictingOrBlockedMergeable(pr?.mergeable))
       .map((pr) => ({
         ref: `${pr.repository.nameWithOwner}#${pr.number}`,
         url: pr.url,
+        mergeable: pr.mergeable,
       })),
     sameRepositoryOpenPullRequests: openPullRequestsInSameRepository(issue).map((pr) => ({
       ref: `${pr.repository.nameWithOwner}#${pr.number}`,

@@ -16,6 +16,7 @@ const DEFAULT_PRIORITY_REPOSITORIES =
   'ControleOnline/app-community,ControleOnline/api-community,ControleOnline/api-whatsapp';
 const DEFAULT_STALE_HOURS = '24';
 const DEFAULT_STALE_DRAFT_HOURS = '24';
+const DEFAULT_STALE_OPEN_PR_HOURS = '48';
 const RETRY = githubRetryConfig('CTO');
 
 function env(name, fallback = '') {
@@ -596,7 +597,48 @@ function classifyPriorityOperationalItem(item, knownAgentLogins, unsupportedLabe
   return null;
 }
 
-function summarizePriorityRepositories(priorityRepositories, repositoryItems, staleHours, staleDraftHours) {
+async function fetchOpenPullRequestsForRepository(repoFullName) {
+  const [owner, repo] = repoFullName.split('/');
+  const pullRequests = await githubRest(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`);
+  const detailedPullRequests = [];
+
+  for (const pullRequest of pullRequests) {
+    const detail = await githubRest(`/repos/${owner}/${repo}/pulls/${pullRequest.number}`);
+    detailedPullRequests.push({
+      ref: `${repoFullName}#${detail.number}`,
+      repository: repoFullName,
+      title: detail.title,
+      url: detail.html_url || detail.url,
+      state: (detail.state || '').toUpperCase(),
+      isDraft: Boolean(detail.draft),
+      mergeable: detail.mergeable,
+      reviewDecision: null,
+      createdAt: detail.created_at,
+      updatedAt: detail.updated_at,
+      ageHours: ageHours(detail.updated_at),
+      mergedAt: detail.merged_at,
+    });
+  }
+
+  return detailedPullRequests;
+}
+
+async function fetchPriorityRepositoryPullRequests(priorityRepositories) {
+  const entries = [];
+  for (const repository of priorityRepositories) {
+    entries.push([repository, await fetchOpenPullRequestsForRepository(repository)]);
+  }
+  return new Map(entries);
+}
+
+function summarizePriorityRepositories(
+  priorityRepositories,
+  repositoryItems,
+  repositoryPullRequestMap,
+  staleHours,
+  staleDraftHours,
+  staleOpenPrHours
+) {
   return priorityRepositories.map((repository) => {
     const snapshots = repositoryItems.filter((entry) => entry.issue.repository === repository);
     const unsupportedIssues = snapshots.filter((entry) => entry.hasUnsupportedLabel);
@@ -608,6 +650,13 @@ function summarizePriorityRepositories(priorityRepositories, repositoryItems, st
     );
     const conflictingPullRequests = openPullRequests.filter((pr) => mergeConflictForPr(pr));
     const reviewPendingPullRequests = openPullRequests.filter((pr) => reviewPendingForPr(pr));
+    const repositoryOpenPullRequests = repositoryPullRequestMap.get(repository) || [];
+    const trackedOpenPullRequestRefs = new Set(openPullRequests.map((pr) => pr.ref));
+    const untrackedOpenPullRequests = repositoryOpenPullRequests.filter((pr) => !trackedOpenPullRequestRefs.has(pr.ref));
+    const staleUntrackedOpenPullRequests = untrackedOpenPullRequests.filter(
+      (pr) => pr.ageHours !== null && pr.ageHours >= staleOpenPrHours
+    );
+    const conflictingUntrackedPullRequests = untrackedOpenPullRequests.filter((pr) => mergeConflictForPr(pr));
     const projectStatuses = [...new Set(snapshots.map((entry) => entry.currentProjectStatus).filter(Boolean))].sort();
     const oldestUpdatedAt = snapshots
       .map((entry) => entry.issue.updatedAt)
@@ -622,11 +671,13 @@ function summarizePriorityRepositories(priorityRepositories, repositoryItems, st
       unsupportedIssues.length > 0 ||
       staleDraftPullRequests.length > 0 ||
       conflictingPullRequests.length > 0 ||
-      reviewPendingPullRequests.length > 0;
+      reviewPendingPullRequests.length > 0 ||
+      staleUntrackedOpenPullRequests.length > 0 ||
+      conflictingUntrackedPullRequests.length > 0;
 
     return {
       repository,
-      state: blocked ? 'blocked' : snapshots.length > 0 ? 'active' : 'clear',
+      state: blocked ? 'blocked' : snapshots.length > 0 || repositoryOpenPullRequests.length > 0 ? 'active' : 'clear',
       issueCount: snapshots.length,
       unsupportedIssueCount: unsupportedIssues.length,
       activeAgentIssueCount: activeAgentIssues.length,
@@ -634,9 +685,13 @@ function summarizePriorityRepositories(priorityRepositories, repositoryItems, st
       oldestAgeHours: oldestUpdatedAt ? ageHours(oldestUpdatedAt) : null,
       newestAgeHours: newestUpdatedAt ? ageHours(newestUpdatedAt) : null,
       openPullRequestCount: openPullRequests.length,
+      repositoryOpenPullRequestCount: repositoryOpenPullRequests.length,
+      untrackedOpenPullRequestCount: untrackedOpenPullRequests.length,
       draftPullRequestCount: draftPullRequests.length,
       staleDraftPullRequestCount: staleDraftPullRequests.length,
       conflictingPullRequestCount: conflictingPullRequests.length,
+      conflictingUntrackedPullRequestCount: conflictingUntrackedPullRequests.length,
+      staleUntrackedOpenPullRequestCount: staleUntrackedOpenPullRequests.length,
       reviewPendingPullRequestCount: reviewPendingPullRequests.length,
       residualTechnicalAssigneeCount: snapshots.filter((entry) => entry.technicalAgentAssignees.length > 0).length,
       projectStatuses,
@@ -644,8 +699,12 @@ function summarizePriorityRepositories(priorityRepositories, repositoryItems, st
       unsupportedIssueRefs: unsupportedIssues.map((entry) => entry.issue.ref).sort(),
       activeAgentIssueRefs: activeAgentIssues.map((entry) => entry.issue.ref).sort(),
       openPullRequestRefs: openPullRequests.map((pr) => pr.ref).sort(),
+      repositoryOpenPullRequestRefs: repositoryOpenPullRequests.map((pr) => pr.ref).sort(),
+      untrackedOpenPullRequestRefs: untrackedOpenPullRequests.map((pr) => pr.ref).sort(),
       staleDraftPullRequestRefs: staleDraftPullRequests.map((pr) => pr.ref).sort(),
+      staleUntrackedOpenPullRequestRefs: staleUntrackedOpenPullRequests.map((pr) => pr.ref).sort(),
       conflictingPullRequestRefs: conflictingPullRequests.map((pr) => pr.ref).sort(),
+      conflictingUntrackedPullRequestRefs: conflictingUntrackedPullRequests.map((pr) => pr.ref).sort(),
       reviewPendingPullRequestRefs: reviewPendingPullRequests.map((pr) => pr.ref).sort(),
     };
   });
@@ -659,7 +718,9 @@ function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
         (
           entry.staleDraftPullRequestCount > 0 ||
           entry.conflictingPullRequestCount > 0 ||
-          entry.reviewPendingPullRequestCount > 0
+          entry.reviewPendingPullRequestCount > 0 ||
+          entry.staleUntrackedOpenPullRequestCount > 0 ||
+          entry.conflictingUntrackedPullRequestCount > 0
         )
     )
     .map((entry) => ({
@@ -668,7 +729,9 @@ function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
       activeAgentIssueRefs: entry.activeAgentIssueRefs,
       unsupportedIssueRefs: entry.unsupportedIssueRefs,
       staleDraftPullRequestRefs: entry.staleDraftPullRequestRefs,
+      staleUntrackedOpenPullRequestRefs: entry.staleUntrackedOpenPullRequestRefs,
       conflictingPullRequestRefs: entry.conflictingPullRequestRefs,
+      conflictingUntrackedPullRequestRefs: entry.conflictingUntrackedPullRequestRefs,
       reviewPendingPullRequestRefs: entry.reviewPendingPullRequestRefs,
     }));
 }
@@ -693,6 +756,10 @@ async function main() {
   const staleDraftHours = parsePositiveNumber(
     env('CTO_PRIORITY_PR_STALE_HOURS', DEFAULT_STALE_DRAFT_HOURS),
     24
+  );
+  const staleOpenPrHours = parsePositiveNumber(
+    env('CTO_PRIORITY_OPEN_PR_STALE_HOURS', DEFAULT_STALE_OPEN_PR_HOURS),
+    48
   );
   const priorityRepositories = normalizePriorityRepositories(
     org,
@@ -773,12 +840,15 @@ async function main() {
     }
   }
 
+  const priorityRepositoryPullRequests = await fetchPriorityRepositoryPullRequests(priorityRepositories);
   const unsupportedCopilotByRepository = summarizeUnsupportedCopilot(unsupportedCopilotIssues);
   const priorityRepositoryHealth = summarizePriorityRepositories(
     priorityRepositories,
     priorityOperationalIssues,
+    priorityRepositoryPullRequests,
     staleHours,
-    staleDraftHours
+    staleDraftHours,
+    staleOpenPrHours
   );
   const priorityPullRequestAttention = buildPriorityPullRequestAttention(priorityRepositoryHealth);
 
@@ -795,14 +865,22 @@ async function main() {
     inReviewStatus,
     doneStatus,
     staleDraftHours,
+    staleOpenPrHours,
     unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
     unsupportedCopilotByRepository,
     unsupportedCopilotIssues,
     priorityRepositories,
     priorityOperationalIssueCount: priorityOperationalIssues.length,
     priorityOperationalIssues,
+    priorityRepositoryOpenPullRequests: Object.fromEntries(
+      priorityRepositories.map((repository) => [repository, priorityRepositoryPullRequests.get(repository) || []])
+    ),
     blockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.state === 'blocked').length,
     staleBlockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.stale).length,
+    untrackedPriorityOpenPullRequestCount: priorityRepositoryHealth.reduce(
+      (sum, entry) => sum + entry.untrackedOpenPullRequestCount,
+      0
+    ),
     priorityPullRequestAttentionCount: priorityPullRequestAttention.length,
     priorityPullRequestAttention,
     priorityRepositoryHealth,
@@ -820,6 +898,7 @@ async function main() {
         priorityOperationalIssueCount: priorityOperationalIssues.length,
         blockedPriorityRepositoryCount: result.blockedPriorityRepositoryCount,
         staleBlockedPriorityRepositoryCount: result.staleBlockedPriorityRepositoryCount,
+        untrackedPriorityOpenPullRequestCount: result.untrackedPriorityOpenPullRequestCount,
         priorityPullRequestAttentionCount: result.priorityPullRequestAttentionCount,
         actionCount: actions.length,
         outPath,

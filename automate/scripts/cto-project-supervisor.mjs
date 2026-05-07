@@ -631,10 +631,78 @@ async function fetchPriorityRepositoryPullRequests(priorityRepositories) {
   return new Map(entries);
 }
 
+async function fetchRepositoryWorkflowFiles(repoFullName) {
+  const [owner, repo] = repoFullName.split('/');
+  try {
+    const entries = await githubRest(`/repos/${owner}/${repo}/contents/.github/workflows`);
+    if (!Array.isArray(entries)) return [];
+    return entries
+      .filter((entry) => entry?.type === 'file')
+      .map((entry) => ({
+        name: entry.name,
+        path: entry.path,
+        sha: entry.sha,
+      }));
+  } catch (error) {
+    let payload = {};
+    try {
+      payload = JSON.parse(error.message || '{}');
+    } catch {
+      payload = {};
+    }
+    if (payload.status === 404) return [];
+    throw error;
+  }
+}
+
+async function fetchRepositoryActionsCatalog(repoFullName) {
+  const [owner, repo] = repoFullName.split('/');
+  try {
+    const payload = await githubRest(`/repos/${owner}/${repo}/actions/workflows?per_page=100`);
+    return {
+      state: 'available',
+      totalCount: payload.total_count || 0,
+      workflows: (payload.workflows || []).map((workflow) => ({
+        id: workflow.id,
+        name: workflow.name,
+        path: workflow.path,
+        state: workflow.state,
+      })),
+      errorStatus: null,
+      errorMessage: null,
+    };
+  } catch (error) {
+    let payload = {};
+    try {
+      payload = JSON.parse(error.message || '{}');
+    } catch {
+      payload = {};
+    }
+    return {
+      state: 'unavailable',
+      totalCount: 0,
+      workflows: [],
+      errorStatus: payload.status || null,
+      errorMessage: payload.body?.message || payload.message || String(error || ''),
+    };
+  }
+}
+
+async function fetchPriorityRepositoryAutomationHealth(priorityRepositories) {
+  const entries = [];
+  for (const repository of priorityRepositories) {
+    const workflowFiles = await fetchRepositoryWorkflowFiles(repository);
+    const actionsCatalog = await fetchRepositoryActionsCatalog(repository);
+    entries.push([repository, { workflowFiles, actionsCatalog }]);
+  }
+  return new Map(entries);
+}
+
 function summarizePriorityRepositories(
   priorityRepositories,
   repositoryItems,
   repositoryPullRequestMap,
+  repositoryAutomationHealthMap,
   staleHours,
   staleDraftHours,
   staleOpenPrHours
@@ -651,6 +719,32 @@ function summarizePriorityRepositories(
     const conflictingPullRequests = openPullRequests.filter((pr) => mergeConflictForPr(pr));
     const reviewPendingPullRequests = openPullRequests.filter((pr) => reviewPendingForPr(pr));
     const repositoryOpenPullRequests = repositoryPullRequestMap.get(repository) || [];
+    const automation = repositoryAutomationHealthMap.get(repository) || {
+      workflowFiles: [],
+      actionsCatalog: {
+        state: 'unknown',
+        totalCount: 0,
+        workflows: [],
+        errorStatus: null,
+        errorMessage: null,
+      },
+    };
+    const workflowFiles = automation.workflowFiles || [];
+    const actionsCatalog = automation.actionsCatalog || {
+      state: 'unknown',
+      totalCount: 0,
+      workflows: [],
+      errorStatus: null,
+      errorMessage: null,
+    };
+    const actionsWorkflowState =
+      workflowFiles.length === 0
+        ? 'missing-workflow-files'
+        : actionsCatalog.state !== 'available'
+          ? 'catalog-unavailable'
+          : actionsCatalog.totalCount === 0
+            ? 'catalog-empty'
+            : 'available';
     const trackedOpenPullRequestRefs = new Set(openPullRequests.map((pr) => pr.ref));
     const untrackedOpenPullRequests = repositoryOpenPullRequests.filter((pr) => !trackedOpenPullRequestRefs.has(pr.ref));
     const staleUntrackedOpenPullRequests = untrackedOpenPullRequests.filter(
@@ -673,7 +767,8 @@ function summarizePriorityRepositories(
       conflictingPullRequests.length > 0 ||
       reviewPendingPullRequests.length > 0 ||
       staleUntrackedOpenPullRequests.length > 0 ||
-      conflictingUntrackedPullRequests.length > 0;
+      conflictingUntrackedPullRequests.length > 0 ||
+      actionsWorkflowState !== 'available';
 
     return {
       repository,
@@ -694,6 +789,13 @@ function summarizePriorityRepositories(
       staleUntrackedOpenPullRequestCount: staleUntrackedOpenPullRequests.length,
       reviewPendingPullRequestCount: reviewPendingPullRequests.length,
       residualTechnicalAssigneeCount: snapshots.filter((entry) => entry.technicalAgentAssignees.length > 0).length,
+      actionsWorkflowState,
+      workflowFileCount: workflowFiles.length,
+      workflowFilePaths: workflowFiles.map((entry) => entry.path).sort(),
+      actionsWorkflowCatalogCount: actionsCatalog.totalCount || 0,
+      actionsWorkflowNames: (actionsCatalog.workflows || []).map((workflow) => workflow.name).sort(),
+      actionsWorkflowErrorStatus: actionsCatalog.errorStatus || null,
+      actionsWorkflowErrorMessage: actionsCatalog.errorMessage || null,
       projectStatuses,
       issueRefs: snapshots.map((entry) => entry.issue.ref).sort(),
       unsupportedIssueRefs: unsupportedIssues.map((entry) => entry.issue.ref).sort(),
@@ -720,11 +822,17 @@ function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
           entry.conflictingPullRequestCount > 0 ||
           entry.reviewPendingPullRequestCount > 0 ||
           entry.staleUntrackedOpenPullRequestCount > 0 ||
-          entry.conflictingUntrackedPullRequestCount > 0
+          entry.conflictingUntrackedPullRequestCount > 0 ||
+          entry.actionsWorkflowState !== 'available'
         )
     )
     .map((entry) => ({
       repository: entry.repository,
+      actionsWorkflowState: entry.actionsWorkflowState,
+      workflowFilePaths: entry.workflowFilePaths,
+      actionsWorkflowNames: entry.actionsWorkflowNames,
+      actionsWorkflowErrorStatus: entry.actionsWorkflowErrorStatus,
+      actionsWorkflowErrorMessage: entry.actionsWorkflowErrorMessage,
       issueRefs: entry.issueRefs,
       activeAgentIssueRefs: entry.activeAgentIssueRefs,
       unsupportedIssueRefs: entry.unsupportedIssueRefs,
@@ -841,11 +949,13 @@ async function main() {
   }
 
   const priorityRepositoryPullRequests = await fetchPriorityRepositoryPullRequests(priorityRepositories);
+  const priorityRepositoryAutomationHealth = await fetchPriorityRepositoryAutomationHealth(priorityRepositories);
   const unsupportedCopilotByRepository = summarizeUnsupportedCopilot(unsupportedCopilotIssues);
   const priorityRepositoryHealth = summarizePriorityRepositories(
     priorityRepositories,
     priorityOperationalIssues,
     priorityRepositoryPullRequests,
+    priorityRepositoryAutomationHealth,
     staleHours,
     staleDraftHours,
     staleOpenPrHours
@@ -875,8 +985,26 @@ async function main() {
     priorityRepositoryOpenPullRequests: Object.fromEntries(
       priorityRepositories.map((repository) => [repository, priorityRepositoryPullRequests.get(repository) || []])
     ),
+    priorityRepositoryAutomationHealth: Object.fromEntries(
+      priorityRepositories.map((repository) => [
+        repository,
+        priorityRepositoryAutomationHealth.get(repository) || {
+          workflowFiles: [],
+          actionsCatalog: {
+            state: 'unknown',
+            totalCount: 0,
+            workflows: [],
+            errorStatus: null,
+            errorMessage: null,
+          },
+        },
+      ])
+    ),
     blockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.state === 'blocked').length,
     staleBlockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.stale).length,
+    actionsBlockedPriorityRepositoryCount: priorityRepositoryHealth.filter(
+      (entry) => entry.actionsWorkflowState !== 'available'
+    ).length,
     untrackedPriorityOpenPullRequestCount: priorityRepositoryHealth.reduce(
       (sum, entry) => sum + entry.untrackedOpenPullRequestCount,
       0
@@ -898,6 +1026,7 @@ async function main() {
         priorityOperationalIssueCount: priorityOperationalIssues.length,
         blockedPriorityRepositoryCount: result.blockedPriorityRepositoryCount,
         staleBlockedPriorityRepositoryCount: result.staleBlockedPriorityRepositoryCount,
+        actionsBlockedPriorityRepositoryCount: result.actionsBlockedPriorityRepositoryCount,
         untrackedPriorityOpenPullRequestCount: result.untrackedPriorityOpenPullRequestCount,
         priorityPullRequestAttentionCount: result.priorityPullRequestAttentionCount,
         actionCount: actions.length,

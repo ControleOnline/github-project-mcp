@@ -575,30 +575,61 @@ function normalizePriorityRepositories(org, repositories) {
   return repositories.map((repository) => (repository.includes('/') ? repository : `${org}/${repository}`));
 }
 
-function summarizePriorityRepositories(priorityRepositories, blockedIssues, staleHours, staleDraftHours) {
+function classifyPriorityOperationalItem(item, knownAgentLogins, unsupportedLabel, priorityRepositorySet) {
+  const issue = item.content;
+  if (!issue?.repository?.nameWithOwner) return null;
+  if (issue.state !== 'OPEN') return null;
+  if (!priorityRepositorySet.has(issue.repository.nameWithOwner)) return null;
+
+  const snapshot = serializeItem(item, knownAgentLogins, unsupportedLabel);
+  const hasOpenPullRequest = openPullRequestsForSnapshot(snapshot).length > 0;
+
+  if (
+    snapshot.hasUnsupportedLabel ||
+    snapshot.hasAgentLabel ||
+    snapshot.hasKnownAgentAssignee ||
+    hasOpenPullRequest
+  ) {
+    return snapshot;
+  }
+
+  return null;
+}
+
+function summarizePriorityRepositories(priorityRepositories, repositoryItems, staleHours, staleDraftHours) {
   return priorityRepositories.map((repository) => {
-    const repositoryIssues = blockedIssues.filter((entry) => entry.issue.repository === repository);
-    const openPullRequests = repositoryIssues.flatMap((entry) => openPullRequestsForSnapshot(entry));
+    const snapshots = repositoryItems.filter((entry) => entry.issue.repository === repository);
+    const unsupportedIssues = snapshots.filter((entry) => entry.hasUnsupportedLabel);
+    const activeAgentIssues = snapshots.filter((entry) => entry.hasAgentLabel || entry.hasKnownAgentAssignee);
+    const openPullRequests = snapshots.flatMap((entry) => openPullRequestsForSnapshot(entry));
     const draftPullRequests = openPullRequests.filter((pr) => pr.isDraft);
     const staleDraftPullRequests = draftPullRequests.filter(
       (pr) => pr.ageHours !== null && pr.ageHours >= staleDraftHours
     );
     const conflictingPullRequests = openPullRequests.filter((pr) => mergeConflictForPr(pr));
     const reviewPendingPullRequests = openPullRequests.filter((pr) => reviewPendingForPr(pr));
-    const projectStatuses = [...new Set(repositoryIssues.map((entry) => entry.currentProjectStatus).filter(Boolean))].sort();
-    const oldestUpdatedAt = repositoryIssues
+    const projectStatuses = [...new Set(snapshots.map((entry) => entry.currentProjectStatus).filter(Boolean))].sort();
+    const oldestUpdatedAt = snapshots
       .map((entry) => entry.issue.updatedAt)
       .filter(Boolean)
       .sort((a, b) => Date.parse(a) - Date.parse(b))[0] || null;
-    const newestUpdatedAt = repositoryIssues
+    const newestUpdatedAt = snapshots
       .map((entry) => entry.issue.updatedAt)
       .filter(Boolean)
       .sort((a, b) => Date.parse(b) - Date.parse(a))[0] || null;
 
+    const blocked =
+      unsupportedIssues.length > 0 ||
+      staleDraftPullRequests.length > 0 ||
+      conflictingPullRequests.length > 0 ||
+      reviewPendingPullRequests.length > 0;
+
     return {
       repository,
-      state: repositoryIssues.length > 0 ? 'blocked' : 'clear',
-      issueCount: repositoryIssues.length,
+      state: blocked ? 'blocked' : snapshots.length > 0 ? 'active' : 'clear',
+      issueCount: snapshots.length,
+      unsupportedIssueCount: unsupportedIssues.length,
+      activeAgentIssueCount: activeAgentIssues.length,
       stale: Boolean(oldestUpdatedAt && ageHours(oldestUpdatedAt) !== null && ageHours(oldestUpdatedAt) >= staleHours),
       oldestAgeHours: oldestUpdatedAt ? ageHours(oldestUpdatedAt) : null,
       newestAgeHours: newestUpdatedAt ? ageHours(newestUpdatedAt) : null,
@@ -607,9 +638,11 @@ function summarizePriorityRepositories(priorityRepositories, blockedIssues, stal
       staleDraftPullRequestCount: staleDraftPullRequests.length,
       conflictingPullRequestCount: conflictingPullRequests.length,
       reviewPendingPullRequestCount: reviewPendingPullRequests.length,
-      residualTechnicalAssigneeCount: repositoryIssues.filter((entry) => entry.technicalAgentAssignees.length > 0).length,
+      residualTechnicalAssigneeCount: snapshots.filter((entry) => entry.technicalAgentAssignees.length > 0).length,
       projectStatuses,
-      issueRefs: repositoryIssues.map((entry) => entry.issue.ref).sort(),
+      issueRefs: snapshots.map((entry) => entry.issue.ref).sort(),
+      unsupportedIssueRefs: unsupportedIssues.map((entry) => entry.issue.ref).sort(),
+      activeAgentIssueRefs: activeAgentIssues.map((entry) => entry.issue.ref).sort(),
       openPullRequestRefs: openPullRequests.map((pr) => pr.ref).sort(),
       staleDraftPullRequestRefs: staleDraftPullRequests.map((pr) => pr.ref).sort(),
       conflictingPullRequestRefs: conflictingPullRequests.map((pr) => pr.ref).sort(),
@@ -622,7 +655,7 @@ function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
   return priorityRepositoryHealth
     .filter(
       (entry) =>
-        entry.state === 'blocked' &&
+        entry.state !== 'clear' &&
         (
           entry.staleDraftPullRequestCount > 0 ||
           entry.conflictingPullRequestCount > 0 ||
@@ -632,6 +665,8 @@ function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
     .map((entry) => ({
       repository: entry.repository,
       issueRefs: entry.issueRefs,
+      activeAgentIssueRefs: entry.activeAgentIssueRefs,
+      unsupportedIssueRefs: entry.unsupportedIssueRefs,
       staleDraftPullRequestRefs: entry.staleDraftPullRequestRefs,
       conflictingPullRequestRefs: entry.conflictingPullRequestRefs,
       reviewPendingPullRequestRefs: entry.reviewPendingPullRequestRefs,
@@ -663,6 +698,7 @@ async function main() {
     org,
     parseCsv(env('CTO_PRIORITY_REPOSITORIES', DEFAULT_PRIORITY_REPOSITORIES))
   );
+  const priorityRepositorySet = new Set(priorityRepositories);
   const knownAgentLogins = new Set(
     parseCsv(env('CTO_KNOWN_AGENT_LOGINS', DEFAULT_KNOWN_AGENT_LOGINS)).map((login) => login.toLowerCase())
   );
@@ -674,8 +710,19 @@ async function main() {
   const items = project.items?.nodes || [];
   const actions = [];
   const unsupportedCopilotIssues = [];
+  const priorityOperationalIssues = [];
 
   for (const item of items) {
+    const prioritySnapshot = classifyPriorityOperationalItem(
+      item,
+      knownAgentLogins,
+      unsupportedLabel,
+      priorityRepositorySet
+    );
+    if (prioritySnapshot) {
+      priorityOperationalIssues.push(prioritySnapshot);
+    }
+
     const blocked = classifyUnsupportedCopilot(item, knownAgentLogins, unsupportedLabel);
     if (blocked) {
       unsupportedCopilotIssues.push(blocked);
@@ -729,7 +776,7 @@ async function main() {
   const unsupportedCopilotByRepository = summarizeUnsupportedCopilot(unsupportedCopilotIssues);
   const priorityRepositoryHealth = summarizePriorityRepositories(
     priorityRepositories,
-    unsupportedCopilotIssues,
+    priorityOperationalIssues,
     staleHours,
     staleDraftHours
   );
@@ -752,6 +799,8 @@ async function main() {
     unsupportedCopilotByRepository,
     unsupportedCopilotIssues,
     priorityRepositories,
+    priorityOperationalIssueCount: priorityOperationalIssues.length,
+    priorityOperationalIssues,
     blockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.state === 'blocked').length,
     staleBlockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.stale).length,
     priorityPullRequestAttentionCount: priorityPullRequestAttention.length,
@@ -768,6 +817,7 @@ async function main() {
         ok: true,
         dryRun,
         unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
+        priorityOperationalIssueCount: priorityOperationalIssues.length,
         blockedPriorityRepositoryCount: result.blockedPriorityRepositoryCount,
         staleBlockedPriorityRepositoryCount: result.staleBlockedPriorityRepositoryCount,
         priorityPullRequestAttentionCount: result.priorityPullRequestAttentionCount,

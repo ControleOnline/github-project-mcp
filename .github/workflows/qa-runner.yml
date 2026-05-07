@@ -15,6 +15,8 @@ on:
       - '.github/workflows/devops-runner.yml'
       - '.github/workflows/agent-flow-sync.yml'
       - '.github/workflows/cto-runner.yml'
+      - '.github/agents/**'
+      - 'AGENTS.md'
       - 'automate/**'
       - 'src/**'
       - 'package.json'

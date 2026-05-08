@@ -63,7 +63,7 @@ Os agents são disparados por GitHub Actions e usam o GitHub como fonte de verda
 
 Fluxo esperado:
 
-1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não esteja exclusivamente com pessoas e não exista outra execução ativa recente do próprio `Developer`.
+1. `Developer` pode capturar a próxima task parada em `Work`, desde que ela não esteja exclusivamente com pessoas. A existência de outra execução recente do próprio `Developer` não deve travar a fila.
 2. Se existir uma issue ainda aberta com `agent:developer`, assignee de agent e sem atualização recente, o dispatcher tenta retomar essa execução antes de capturar uma task nova.
 3. Task aberta em `Work` sem `agent:*` pertence inicialmente a `Developer`.
 4. Ler a issue, PRs, reviews, comentários, commits, checks e arquivos alterados.
@@ -218,7 +218,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - o label `agent:*` é a associação oficial do agent responsável atual
 - task aberta em `Work` sem `agent:*` entra por padrão em `Developer`
 - `Developer` não deve capturar tasks em `Work` que estejam exclusivamente atribuídas a pessoas.
-- issue aberta com `agent:developer` e assignee de agent so deve bloquear a fila enquanto houver atividade recente; acima do limite configurado, a automação tenta retomar a execucao.
+- issue aberta com `agent:developer` e assignee de agent so deve priorizar redispatch da própria trilha quando houver atividade recente; isso não deve impedir a captura de outras tasks elegíveis.
 - conflito de merge em PR aberto no mesmo repositório da issue/composição deve ir para `DevOps`
 - conflito apenas em submódulo ou repositório satélite, sem PR agregador aberto no repositório da issue, deve voltar para `Developer`
 - issue com `ops:copilot-unavailable` e PR aberto vinculado deve ser tratada como backlog de review/composição, não como fila virgem de captura

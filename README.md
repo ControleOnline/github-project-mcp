@@ -82,6 +82,7 @@ Fluxo esperado:
 17. O CTO não deve repetir comentário de auditoria na mesma issue quando a rodada não trouxer evidência nova, correção publicada, alteração de ownership ou novo próximo marco objetivo; nessas situações, a revalidação deve ficar no artifact central ou na memória operacional.
 18. Quando a mudança material existir apenas no núcleo `cto-mcp`, ela deve ser registrada na trilha central, no artifact ou na memória, sem replicação automática nas issues consumidoras.
 19. Em issues de plataforma ou validação preventiva de `app-community`, `api-community` e `api-whatsapp`, comentário novo só é aceitável quando houver transição verificável no próprio repositório alvo, como primeiro `ops:copilot-unavailable`, limpeza observável de assignee técnico residual, novo PR vinculado, mudança real de `mergeable`, mudança de status check ou workflow run, habilitação do Copilot ou encerramento do bloqueio.
+20. Issue aberta com `agent:*`, assignee humano e sem assignee técnico conhecido do agent deve ser lida como `override manual ativo`: esse estado prova atividade do fluxo, mas ainda não prova captura first-party bem-sucedida do Copilot. A auditoria do CTO deve separar esse caso de `ops:copilot-unavailable` e de fila virgem.
 
 A retomada automática evita lock indefinido da fila do `Developer` quando uma execução antiga fica parada ou quando a issue é devolvida manualmente sem limpeza operacional completa.
 
@@ -97,6 +98,8 @@ Quando a API responder que o Copilot agent não está habilitado no repositório
 - continua procurando a próxima task elegível em vez de encerrar a rodada como fila vazia
 
 Esse estado indica limitação operacional do repositório de destino, e não falha do fluxo central do `cto-mcp`.
+
+Quando `AGENT_ASSIGNEE_OVERRIDE` estiver ativo e a fila precisar seguir por fallback humano, a issue pode permanecer com `agent:*` e assignee humano sem assignee técnico do Copilot. Esse estado não é bloqueio puro nem fila virgem: deve ser auditado como `override manual ativo` até que a captura first-party volte a aparecer ou a trilha seja concluída.
 
 ## Credenciais e secrets
 
@@ -222,6 +225,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - conflito de merge em PR aberto no mesmo repositório da issue/composição deve ir para `DevOps`
 - conflito apenas em submódulo ou repositório satélite, sem PR agregador aberto no repositório da issue, deve voltar para `Developer`
 - issue com `ops:copilot-unavailable` e PR aberto vinculado deve ser tratada como backlog de review/composição, não como fila virgem de captura
+- issue com `agent:*`, assignee humano e sem assignee técnico conhecido do Copilot deve ser tratada como `override manual ativo`, não como fila virgem nem como bloqueio puro
 - o supervisor do CTO deve tratar como bloqueio de plataforma os repositórios prioritários que já tenham workflow versionado, mas ainda não exponham catálogo observável de Actions
 - o supervisor do CTO também deve tratar como bloqueio operacional os repositórios prioritários cujos PRs abertos ainda publiquem checks em erro
 - o supervisor do CTO precisa validar também a saúde observável do próprio `cto-mcp` antes de concluir que o gargalo está só nos repositórios consumidores

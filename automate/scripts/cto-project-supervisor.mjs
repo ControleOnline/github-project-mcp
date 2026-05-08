@@ -17,6 +17,7 @@ const DEFAULT_PRIORITY_REPOSITORIES =
 const DEFAULT_STALE_HOURS = '24';
 const DEFAULT_STALE_DRAFT_HOURS = '24';
 const DEFAULT_STALE_OPEN_PR_HOURS = '48';
+const DEFAULT_PRIORITY_WORKFLOW_RUN_LOOKBACK = '10';
 const RETRY = githubRetryConfig('CTO');
 
 function env(name, fallback = '') {
@@ -422,6 +423,71 @@ function ageHours(value) {
   return Math.max(0, Math.floor((Date.now() - timestamp) / 3600000));
 }
 
+function normalizeCombinedStatus(payload) {
+  const statuses = Array.isArray(payload?.statuses) ? payload.statuses : [];
+  const deduped = [];
+  const seenContexts = new Set();
+  for (const status of statuses) {
+    const context = status?.context || 'unknown';
+    if (seenContexts.has(context)) continue;
+    seenContexts.add(context);
+    deduped.push({
+      context,
+      state: status?.state || 'unknown',
+      description: status?.description || null,
+      targetUrl: status?.target_url || null,
+      updatedAt: status?.updated_at || null,
+    });
+  }
+  return {
+    state: payload?.state || 'unknown',
+    totalCount: deduped.length,
+    failingContexts: deduped.filter((status) => ['error', 'failure'].includes(status.state)),
+    pendingContexts: deduped.filter((status) => ['pending'].includes(status.state)),
+    successfulContexts: deduped.filter((status) => status.state === 'success'),
+    contexts: deduped,
+  };
+}
+
+function normalizeWorkflowRun(run) {
+  return {
+    id: run.id,
+    name: run.name,
+    displayTitle: run.display_title || null,
+    event: run.event || null,
+    status: run.status || null,
+    conclusion: run.conclusion || null,
+    workflowId: run.workflow_id || null,
+    runNumber: run.run_number || null,
+    headBranch: run.head_branch || null,
+    headSha: run.head_sha || null,
+    htmlUrl: run.html_url || run.url || null,
+    createdAt: run.created_at || null,
+    updatedAt: run.updated_at || null,
+    ageHours: ageHours(run.updated_at || run.created_at || null),
+  };
+}
+
+function classifyLatestWorkflowRunState(workflowFiles, actionsCatalog, recentRuns) {
+  if (workflowFiles.length === 0) return 'missing-workflow-files';
+  if (actionsCatalog.state !== 'available') return 'catalog-unavailable';
+  if (actionsCatalog.totalCount === 0) return 'catalog-empty';
+  if (recentRuns.errorStatus) return 'runs-unavailable';
+  if (recentRuns.totalCount === 0) return 'runs-empty';
+
+  const latest = recentRuns.latestRun;
+  if (!latest) return 'runs-empty';
+  if (latest.status !== 'completed') return 'latest-run-in-progress';
+  if (latest.conclusion === 'success') return 'latest-run-success';
+  if (latest.conclusion === 'failure') return 'latest-run-failure';
+  if (latest.conclusion === 'cancelled') return 'latest-run-cancelled';
+  if (latest.conclusion === 'timed_out') return 'latest-run-timed-out';
+  if (latest.conclusion === 'neutral') return 'latest-run-neutral';
+  if (latest.conclusion === 'skipped') return 'latest-run-skipped';
+  if (latest.conclusion === 'action_required') return 'latest-run-action-required';
+  return 'latest-run-other';
+}
+
 function serializeItem(item, knownAgentLogins, unsupportedLabel) {
   const issue = item.content;
   const labels = issueLabels(issue);
@@ -597,6 +663,31 @@ function classifyPriorityOperationalItem(item, knownAgentLogins, unsupportedLabe
   return null;
 }
 
+async function fetchCombinedStatusForCommit(repoFullName, ref) {
+  const [owner, repo] = repoFullName.split('/');
+  try {
+    const payload = await githubRest(`/repos/${owner}/${repo}/commits/${ref}/status`);
+    return normalizeCombinedStatus(payload);
+  } catch (error) {
+    let payload = {};
+    try {
+      payload = JSON.parse(error.message || '{}');
+    } catch {
+      payload = {};
+    }
+    return {
+      state: 'unavailable',
+      totalCount: 0,
+      failingContexts: [],
+      pendingContexts: [],
+      successfulContexts: [],
+      contexts: [],
+      errorStatus: payload.status || null,
+      errorMessage: payload.body?.message || payload.message || String(error || ''),
+    };
+  }
+}
+
 async function fetchOpenPullRequestsForRepository(repoFullName) {
   const [owner, repo] = repoFullName.split('/');
   const pullRequests = await githubRest(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`);
@@ -604,6 +695,8 @@ async function fetchOpenPullRequestsForRepository(repoFullName) {
 
   for (const pullRequest of pullRequests) {
     const detail = await githubRest(`/repos/${owner}/${repo}/pulls/${pullRequest.number}`);
+    const headSha = detail.head?.sha || null;
+    const combinedStatus = headSha ? await fetchCombinedStatusForCommit(repoFullName, headSha) : null;
     detailedPullRequests.push({
       ref: `${repoFullName}#${detail.number}`,
       repository: repoFullName,
@@ -617,6 +710,8 @@ async function fetchOpenPullRequestsForRepository(repoFullName) {
       updatedAt: detail.updated_at,
       ageHours: ageHours(detail.updated_at),
       mergedAt: detail.merged_at,
+      headSha,
+      combinedStatus,
     });
   }
 
@@ -688,12 +783,44 @@ async function fetchRepositoryActionsCatalog(repoFullName) {
   }
 }
 
-async function fetchPriorityRepositoryAutomationHealth(priorityRepositories) {
+async function fetchRepositoryRecentWorkflowRuns(repoFullName, perPage) {
+  const [owner, repo] = repoFullName.split('/');
+  try {
+    const payload = await githubRest(`/repos/${owner}/${repo}/actions/runs?per_page=${perPage}`);
+    const runs = (payload.workflow_runs || []).map(normalizeWorkflowRun);
+    return {
+      totalCount: payload.total_count || runs.length,
+      latestRun: runs[0] || null,
+      failingRuns: runs.filter((run) => run.conclusion === 'failure'),
+      recentRuns: runs,
+      errorStatus: null,
+      errorMessage: null,
+    };
+  } catch (error) {
+    let payload = {};
+    try {
+      payload = JSON.parse(error.message || '{}');
+    } catch {
+      payload = {};
+    }
+    return {
+      totalCount: 0,
+      latestRun: null,
+      failingRuns: [],
+      recentRuns: [],
+      errorStatus: payload.status || null,
+      errorMessage: payload.body?.message || payload.message || String(error || ''),
+    };
+  }
+}
+
+async function fetchPriorityRepositoryAutomationHealth(priorityRepositories, workflowRunLookback) {
   const entries = [];
   for (const repository of priorityRepositories) {
     const workflowFiles = await fetchRepositoryWorkflowFiles(repository);
     const actionsCatalog = await fetchRepositoryActionsCatalog(repository);
-    entries.push([repository, { workflowFiles, actionsCatalog }]);
+    const recentWorkflowRuns = await fetchRepositoryRecentWorkflowRuns(repository, workflowRunLookback);
+    entries.push([repository, { workflowFiles, actionsCatalog, recentWorkflowRuns }]);
   }
   return new Map(entries);
 }
@@ -719,12 +846,26 @@ function summarizePriorityRepositories(
     const conflictingPullRequests = openPullRequests.filter((pr) => mergeConflictForPr(pr));
     const reviewPendingPullRequests = openPullRequests.filter((pr) => reviewPendingForPr(pr));
     const repositoryOpenPullRequests = repositoryPullRequestMap.get(repository) || [];
+    const pullRequestsWithFailingChecks = repositoryOpenPullRequests.filter(
+      (pr) => (pr.combinedStatus?.failingContexts || []).length > 0
+    );
+    const pullRequestsWithPendingChecks = repositoryOpenPullRequests.filter(
+      (pr) => (pr.combinedStatus?.pendingContexts || []).length > 0
+    );
     const automation = repositoryAutomationHealthMap.get(repository) || {
       workflowFiles: [],
       actionsCatalog: {
         state: 'unknown',
         totalCount: 0,
         workflows: [],
+        errorStatus: null,
+        errorMessage: null,
+      },
+      recentWorkflowRuns: {
+        totalCount: 0,
+        latestRun: null,
+        failingRuns: [],
+        recentRuns: [],
         errorStatus: null,
         errorMessage: null,
       },
@@ -737,14 +878,15 @@ function summarizePriorityRepositories(
       errorStatus: null,
       errorMessage: null,
     };
-    const actionsWorkflowState =
-      workflowFiles.length === 0
-        ? 'missing-workflow-files'
-        : actionsCatalog.state !== 'available'
-          ? 'catalog-unavailable'
-          : actionsCatalog.totalCount === 0
-            ? 'catalog-empty'
-            : 'available';
+    const recentWorkflowRuns = automation.recentWorkflowRuns || {
+      totalCount: 0,
+      latestRun: null,
+      failingRuns: [],
+      recentRuns: [],
+      errorStatus: null,
+      errorMessage: null,
+    };
+    const actionsWorkflowState = classifyLatestWorkflowRunState(workflowFiles, actionsCatalog, recentWorkflowRuns);
     const trackedOpenPullRequestRefs = new Set(openPullRequests.map((pr) => pr.ref));
     const untrackedOpenPullRequests = repositoryOpenPullRequests.filter((pr) => !trackedOpenPullRequestRefs.has(pr.ref));
     const staleUntrackedOpenPullRequests = untrackedOpenPullRequests.filter(
@@ -768,7 +910,8 @@ function summarizePriorityRepositories(
       reviewPendingPullRequests.length > 0 ||
       staleUntrackedOpenPullRequests.length > 0 ||
       conflictingUntrackedPullRequests.length > 0 ||
-      actionsWorkflowState !== 'available';
+      pullRequestsWithFailingChecks.length > 0 ||
+      actionsWorkflowState !== 'latest-run-success';
 
     return {
       repository,
@@ -788,6 +931,8 @@ function summarizePriorityRepositories(
       conflictingUntrackedPullRequestCount: conflictingUntrackedPullRequests.length,
       staleUntrackedOpenPullRequestCount: staleUntrackedOpenPullRequests.length,
       reviewPendingPullRequestCount: reviewPendingPullRequests.length,
+      failingCheckPullRequestCount: pullRequestsWithFailingChecks.length,
+      pendingCheckPullRequestCount: pullRequestsWithPendingChecks.length,
       residualTechnicalAssigneeCount: snapshots.filter((entry) => entry.technicalAgentAssignees.length > 0).length,
       actionsWorkflowState,
       workflowFileCount: workflowFiles.length,
@@ -796,6 +941,12 @@ function summarizePriorityRepositories(
       actionsWorkflowNames: (actionsCatalog.workflows || []).map((workflow) => workflow.name).sort(),
       actionsWorkflowErrorStatus: actionsCatalog.errorStatus || null,
       actionsWorkflowErrorMessage: actionsCatalog.errorMessage || null,
+      latestWorkflowRun: recentWorkflowRuns.latestRun || null,
+      recentWorkflowRunCount: recentWorkflowRuns.recentRuns.length,
+      failingRecentWorkflowRunCount: recentWorkflowRuns.failingRuns.length,
+      failingRecentWorkflowRunRefs: recentWorkflowRuns.failingRuns.map((run) => `run:${run.id}`).sort(),
+      recentWorkflowRunErrorStatus: recentWorkflowRuns.errorStatus || null,
+      recentWorkflowRunErrorMessage: recentWorkflowRuns.errorMessage || null,
       projectStatuses,
       issueRefs: snapshots.map((entry) => entry.issue.ref).sort(),
       unsupportedIssueRefs: unsupportedIssues.map((entry) => entry.issue.ref).sort(),
@@ -808,6 +959,26 @@ function summarizePriorityRepositories(
       conflictingPullRequestRefs: conflictingPullRequests.map((pr) => pr.ref).sort(),
       conflictingUntrackedPullRequestRefs: conflictingUntrackedPullRequests.map((pr) => pr.ref).sort(),
       reviewPendingPullRequestRefs: reviewPendingPullRequests.map((pr) => pr.ref).sort(),
+      failingCheckPullRequestRefs: pullRequestsWithFailingChecks.map((pr) => pr.ref).sort(),
+      pendingCheckPullRequestRefs: pullRequestsWithPendingChecks.map((pr) => pr.ref).sort(),
+      failingCheckContextsByPullRequest: pullRequestsWithFailingChecks.map((pr) => ({
+        ref: pr.ref,
+        contexts: (pr.combinedStatus?.failingContexts || []).map((status) => ({
+          context: status.context,
+          state: status.state,
+          description: status.description,
+          targetUrl: status.targetUrl,
+        })),
+      })),
+      pendingCheckContextsByPullRequest: pullRequestsWithPendingChecks.map((pr) => ({
+        ref: pr.ref,
+        contexts: (pr.combinedStatus?.pendingContexts || []).map((status) => ({
+          context: status.context,
+          state: status.state,
+          description: status.description,
+          targetUrl: status.targetUrl,
+        })),
+      })),
     };
   });
 }
@@ -823,7 +994,8 @@ function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
           entry.reviewPendingPullRequestCount > 0 ||
           entry.staleUntrackedOpenPullRequestCount > 0 ||
           entry.conflictingUntrackedPullRequestCount > 0 ||
-          entry.actionsWorkflowState !== 'available'
+          entry.failingCheckPullRequestCount > 0 ||
+          entry.actionsWorkflowState !== 'latest-run-success'
         )
     )
     .map((entry) => ({
@@ -833,6 +1005,9 @@ function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
       actionsWorkflowNames: entry.actionsWorkflowNames,
       actionsWorkflowErrorStatus: entry.actionsWorkflowErrorStatus,
       actionsWorkflowErrorMessage: entry.actionsWorkflowErrorMessage,
+      latestWorkflowRun: entry.latestWorkflowRun,
+      recentWorkflowRunErrorStatus: entry.recentWorkflowRunErrorStatus,
+      recentWorkflowRunErrorMessage: entry.recentWorkflowRunErrorMessage,
       issueRefs: entry.issueRefs,
       activeAgentIssueRefs: entry.activeAgentIssueRefs,
       unsupportedIssueRefs: entry.unsupportedIssueRefs,
@@ -841,6 +1016,10 @@ function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
       conflictingPullRequestRefs: entry.conflictingPullRequestRefs,
       conflictingUntrackedPullRequestRefs: entry.conflictingUntrackedPullRequestRefs,
       reviewPendingPullRequestRefs: entry.reviewPendingPullRequestRefs,
+      failingCheckPullRequestRefs: entry.failingCheckPullRequestRefs,
+      pendingCheckPullRequestRefs: entry.pendingCheckPullRequestRefs,
+      failingCheckContextsByPullRequest: entry.failingCheckContextsByPullRequest,
+      pendingCheckContextsByPullRequest: entry.pendingCheckContextsByPullRequest,
     }));
 }
 
@@ -868,6 +1047,10 @@ async function main() {
   const staleOpenPrHours = parsePositiveNumber(
     env('CTO_PRIORITY_OPEN_PR_STALE_HOURS', DEFAULT_STALE_OPEN_PR_HOURS),
     48
+  );
+  const workflowRunLookback = parsePositiveNumber(
+    env('CTO_PRIORITY_WORKFLOW_RUN_LOOKBACK', DEFAULT_PRIORITY_WORKFLOW_RUN_LOOKBACK),
+    10
   );
   const priorityRepositories = normalizePriorityRepositories(
     org,
@@ -949,7 +1132,10 @@ async function main() {
   }
 
   const priorityRepositoryPullRequests = await fetchPriorityRepositoryPullRequests(priorityRepositories);
-  const priorityRepositoryAutomationHealth = await fetchPriorityRepositoryAutomationHealth(priorityRepositories);
+  const priorityRepositoryAutomationHealth = await fetchPriorityRepositoryAutomationHealth(
+    priorityRepositories,
+    workflowRunLookback
+  );
   const unsupportedCopilotByRepository = summarizeUnsupportedCopilot(unsupportedCopilotIssues);
   const priorityRepositoryHealth = summarizePriorityRepositories(
     priorityRepositories,
@@ -976,6 +1162,7 @@ async function main() {
     doneStatus,
     staleDraftHours,
     staleOpenPrHours,
+    workflowRunLookback,
     unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
     unsupportedCopilotByRepository,
     unsupportedCopilotIssues,
@@ -997,14 +1184,26 @@ async function main() {
             errorStatus: null,
             errorMessage: null,
           },
+          recentWorkflowRuns: {
+            totalCount: 0,
+            latestRun: null,
+            failingRuns: [],
+            recentRuns: [],
+            errorStatus: null,
+            errorMessage: null,
+          },
         },
       ])
     ),
     blockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.state === 'blocked').length,
     staleBlockedPriorityRepositoryCount: priorityRepositoryHealth.filter((entry) => entry.stale).length,
     actionsBlockedPriorityRepositoryCount: priorityRepositoryHealth.filter(
-      (entry) => entry.actionsWorkflowState !== 'available'
+      (entry) => entry.actionsWorkflowState !== 'latest-run-success'
     ).length,
+    failingCheckPriorityPullRequestCount: priorityRepositoryHealth.reduce(
+      (sum, entry) => sum + entry.failingCheckPullRequestCount,
+      0
+    ),
     untrackedPriorityOpenPullRequestCount: priorityRepositoryHealth.reduce(
       (sum, entry) => sum + entry.untrackedOpenPullRequestCount,
       0
@@ -1027,7 +1226,8 @@ async function main() {
         blockedPriorityRepositoryCount: result.blockedPriorityRepositoryCount,
         staleBlockedPriorityRepositoryCount: result.staleBlockedPriorityRepositoryCount,
         actionsBlockedPriorityRepositoryCount: result.actionsBlockedPriorityRepositoryCount,
-        untrackedPriorityOpenPullRequestCount: result.untrackedPriorityOpenPullRequestCount,
+        failingCheckPriorityPullRequestCount: result.failingCheckPriorityPullRequestCount,
+        untrackedPriorityOpenPullRequestCount: result.untrackedOpenPullRequestCount,
         priorityPullRequestAttentionCount: result.priorityPullRequestAttentionCount,
         actionCount: actions.length,
         outPath,

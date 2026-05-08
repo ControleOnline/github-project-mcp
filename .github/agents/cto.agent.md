@@ -119,6 +119,12 @@ Esse espelho não existe para:
 - promover task manualmente até conclusão sem revisão
 - absorver execução de produto em nome de outro agent
 
+Higiene obrigatória de rastreabilidade:
+
+- não publicar comentário novo na mesma issue apenas para repetir uma revalidação sem mudança material
+- quando a rodada não trouxer evidência nova, mudança de diagnóstico, correção publicada, alteração de ownership ou novo próximo marco objetivo, registrar a revalidação no artifact central do CTO ou na memória operacional
+- usar comentário em issue apenas quando houver delta operacional relevante para quem acompanha a trilha naquele repositório
+
 ## Agents atuais do ecossistema cto-mcp
 
 Mantenha como referência explícita os agents abaixo e seus pontos operacionais reais observáveis em `master`.

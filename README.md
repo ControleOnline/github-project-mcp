@@ -80,6 +80,8 @@ Fluxo esperado:
 15. O supervisor do CTO também cruza os runs recentes do Actions e os status checks publicados nos PRs abertos dos repositórios prioritários, para separar bloqueio de plataforma, falha de pipeline e backlog real de composição.
 16. Os runners centrais usam `concurrency` por workflow e branch para serializar execuções sobrepostas do mesmo fluxo, evitando comentário duplicado, disputa de mutação e leitura inconsistente da mesma fila quando coincidem `schedule`, `push` e reexecução manual.
 17. O CTO não deve repetir comentário de auditoria na mesma issue quando a rodada não trouxer evidência nova, correção publicada, alteração de ownership ou novo próximo marco objetivo; nessas situações, a revalidação deve ficar no artifact central ou na memória operacional.
+18. Quando a mudança material existir apenas no núcleo `cto-mcp`, ela deve ser registrada na trilha central, no artifact ou na memória, sem replicação automática nas issues consumidoras.
+19. Em issues de plataforma ou validação preventiva de `app-community`, `api-community` e `api-whatsapp`, comentário novo só é aceitável quando houver transição verificável no próprio repositório alvo, como primeiro `ops:copilot-unavailable`, limpeza observável de assignee técnico residual, novo PR vinculado, mudança real de `mergeable`, mudança de status check ou workflow run, habilitação do Copilot ou encerramento do bloqueio.
 
 A retomada automática evita lock indefinido da fila do `Developer` quando uma execução antiga fica parada ou quando a issue é devolvida manualmente sem limpeza operacional completa.
 

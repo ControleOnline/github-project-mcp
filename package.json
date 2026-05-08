@@ -1,11 +1,18 @@
 {
-  "name": "github-project-mcp",
+  "name": "cto-mcp",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Minimal MCP-style service to move a GitHub Project item to a target status.",
+  "description": "ControleOnline orchestration repository for GitHub agents, runners, and project automation.",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "developer": "node src/developer-runner.js",
+    "security": "node src/security-runner.js",
+    "qa": "node src/qa-runner.js",
+    "devops": "node src/devops-runner.js",
+    "flow-sync": "node src/agent-flow-sync-runner.js",
+    "cto": "node src/cto-runner.js",
+    "direct-push-ingest": "node src/direct-push-ingest-runner.js"
   }
 }

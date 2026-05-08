@@ -447,7 +447,7 @@ function buildAssignmentComment(role, issueRef) {
     '',
     `Issue: ${issueRef}`,
     origin,
-    'Critério: task elegível, sem ownership exclusivamente humano e sem outra execução ativa do mesmo agent.',
+    'Critério: task elegível, sem ownership exclusivamente humano e pronta para nova captura pelo agent.',
     `Ação: o runner atribuiu o agent \`${meta.displayName}\` para iniciar a execução.`,
   ].join('\n');
 }
@@ -461,7 +461,7 @@ function buildRecoveryComment(role, issueRef, staleAfterMinutes, updatedAt) {
     `Issue: ${issueRef}`,
     `Origem: execução ativa em \`${meta.label}\` sem avanço recente.`,
     `Critério: issue ainda aberta, com assignee de agent, parada há ${ageMinutes ?? 'tempo indeterminado'} minutos; limite configurado: ${staleAfterMinutes} minutos.`,
-    `Ação: o runner reatribuiu o agent \`${meta.displayName}\` para retomar a execução em vez de bloquear a fila.`,
+    `Ação: o runner reatribuiu o agent \`${meta.displayName}\` para retomar a execução sem bloquear a continuação da fila.`,
   ].join('\n');
 }
 
@@ -718,19 +718,6 @@ async function main() {
     candidateItems: candidateItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
     assignmentAttempts: [],
   };
-
-  if (freshActiveItems.length > 0) {
-    result.ok = true;
-    result.skipped = true;
-    const refs = freshActiveItems
-      .slice(0, 5)
-      .map((item) => `${item.content.repository.nameWithOwner}#${item.content.number}`)
-      .join(', ');
-    result.reason = `Já existe task recente em execução pelo agent ${meta.displayName}: ${refs}.`;
-    const outPath = writeOutputFile(result);
-    console.log(JSON.stringify({ ok: true, skipped: true, reason: result.reason, outPath }, null, 2));
-    return;
-  }
 
   if (targetItems.length === 0) {
     result.ok = true;

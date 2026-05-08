@@ -49,6 +49,7 @@ jobs:
           AGENT_WORK_STATUS: Work
           AGENT_LOGIN: github-copilot[bot]
           AGENT_KNOWN_LOGINS: github-copilot[bot],copilot-swe-agent,copilot
+          AGENT_ASSIGNEE_OVERRIDE: ${{ secrets.AGENT_ASSIGNEE_OVERRIDE }}
           AGENT_COPILOT_BASE_REF: master
           AGENT_COPILOT_MODEL: ''
           AGENT_OUTPUT_DIR: ./.security-output

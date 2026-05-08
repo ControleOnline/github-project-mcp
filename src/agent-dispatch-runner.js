@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 const GRAPHQL_API_URL = 'https://api.github.com/graphql';
 const REST_API_URL = 'https://api.github.com';
 const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
-const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
+const DEFAULT_KNOWN_AGENT_LOGINS = 'github-copilot[bot],copilot-swe-agent,copilot';
 const ROLE_META = {
   developer: { displayName: 'Developer', label: 'agent:developer' },
   security: { displayName: 'Security', label: 'agent:security' },
@@ -207,7 +207,7 @@ async function surfaceMissingActorBlocks(payload) {
   if (payload?.dryRun) return [];
 
   const unsupportedLabel = payload.unsupportedLabel || DEFAULT_UNSUPPORTED_LABEL;
-  const preferredAgentLogin = env('AGENT_LOGIN', 'copilot-swe-agent').toLowerCase();
+  const preferredAgentLogin = env('AGENT_LOGIN', 'github-copilot[bot]').toLowerCase();
   const knownAgentLogins = new Set(
     parseCsv(env('AGENT_KNOWN_LOGINS', DEFAULT_KNOWN_AGENT_LOGINS)).map((login) => login.toLowerCase())
   );

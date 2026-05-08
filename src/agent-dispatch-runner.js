@@ -11,6 +11,7 @@ const ROLE_META = {
   developer: { displayName: 'Developer', label: 'agent:developer' },
   security: { displayName: 'Security', label: 'agent:security' },
   qa: { displayName: 'Quality Assurance', label: 'agent:qa' },
+  devops: { displayName: 'DevOps', label: 'agent:devops' },
 };
 const ALL_AGENT_LABELS = Object.values(ROLE_META).map((entry) => entry.label);
 const LABEL_META = {

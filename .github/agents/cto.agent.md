@@ -39,6 +39,7 @@ Essa verificação deve incluir, quando relevante para o pedido atual:
 - logs de jobs e steps relacionados quando houver workflow, runner ou automação envolvidos no diagnóstico
 - issues abertas e andamento das delegações
 - PRs, comentários, evidências e sinais de bloqueio
+- status checks publicados em commits e PRs, inclusive sinais externos como `Scrutinizer`, para separar backlog de implementação de backlog de composição, review ou gate quebrado
 - indícios de falha operacional, ambiguidade de ownership, gargalo, regressão ou fluxo ineficiente
 
 ## Modelo de atuação
@@ -100,6 +101,7 @@ Regra adicional de leitura operacional:
 
 - issue com `ops:copilot-unavailable` e PR aberto vinculado não deve ser tratada como backlog virgem de `Developer`
 - nessa situação, o CTO deve registrar que já existe entrega em review ou composição e evitar reencaminhamento indevido para nova captura automática enquanto a trilha de PR continuar válida
+- PR aberto com `mergeable: false` ou com status check publicado em erro deve ser tratado como backlog de composição, review ou bloqueio técnico verificável, não como demanda nova sem trabalho materializado
 
 ## Espelho operacional do CTO
 

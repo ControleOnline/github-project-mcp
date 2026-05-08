@@ -47,11 +47,10 @@ jobs:
           AGENT_PROJECT_NUMBER: 1
           AGENT_DRY_RUN: false
           AGENT_WORK_STATUS: Work
-          AGENT_LOGIN: copilot-swe-agent
-          AGENT_KNOWN_LOGINS: copilot-swe-agent,copilot
+          AGENT_LOGIN: github-copilot[bot]
+          AGENT_KNOWN_LOGINS: github-copilot[bot],copilot-swe-agent,copilot
           AGENT_COPILOT_BASE_REF: master
           AGENT_COPILOT_MODEL: ''
-          AGENT_ASSIGNEE_OVERRIDE: ${{ secrets.AGENT_ASSIGNEE_OVERRIDE || 'luizkim' }}
           AGENT_OUTPUT_DIR: ./.developer-output
 
       - name: Upload developer snapshot artifact

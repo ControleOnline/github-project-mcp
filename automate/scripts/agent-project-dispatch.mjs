@@ -477,6 +477,18 @@ function buildUnavailableComment(role, issueRef, unsupportedLabel) {
   ].join('\n');
 }
 
+function buildOverrideComment(role, issueRef, overrideLogin) {
+  const meta = ROLE_META[role];
+  return [
+    `### ${meta.commentHeader} - modo override`,
+    '',
+    `Issue: ${issueRef}`,
+    `Modo: atribuição manual via \`AGENT_ASSIGNEE_OVERRIDE\` (Copilot cloud agent não disponível no repositório alvo).`,
+    `Ação: o runner atribuiu \`${overrideLogin}\` como responsável pelo papel \`${meta.displayName}\`.`,
+    meta.nextInstruction,
+  ].join('\n');
+}
+
 async function ensureLabelExists(repoFullName, labelName) {
   const [owner, repo] = repoFullName.split('/');
   const meta = LABEL_META[labelName] || { color: '1f6feb', description: labelName };
@@ -510,6 +522,16 @@ async function removeIssueAssignees(repoFullName, issueNumber, assignees) {
     method: 'DELETE',
     body: JSON.stringify({ assignees }),
   });
+}
+
+async function resolveUserActor(login) {
+  try {
+    const data = await githubRest(`/users/${login}`);
+    if (!data?.node_id) return null;
+    return { id: data.node_id, login: login.toLowerCase() };
+  } catch {
+    return null;
+  }
 }
 
 async function replaceAssignableActors(issueId, actorIds) {
@@ -640,6 +662,15 @@ async function main() {
   const redispatchStaleActive = env('AGENT_REDISPATCH_STALE_ACTIVE', 'true').toLowerCase() !== 'false';
   const unsupportedLabel = env('AGENT_UNSUPPORTED_LABEL', DEFAULT_UNSUPPORTED_LABEL);
 
+  const assigneeOverrideLogin = env('AGENT_ASSIGNEE_OVERRIDE', '').toLowerCase();
+  let overrideActor = null;
+  if (assigneeOverrideLogin) {
+    overrideActor = await resolveUserActor(assigneeOverrideLogin);
+    if (overrideActor) {
+      knownAgentLogins.add(assigneeOverrideLogin);
+    }
+  }
+
   const data = await getProjectSnapshot(org, projectNumber);
   const project = data?.organization?.projectV2;
   if (!project) throw new Error(`Project not found: ${org}/projects/${projectNumber}`);
@@ -712,7 +743,9 @@ async function main() {
   for (const target of targetItems) {
     const issue = target.content;
     const issueRef = `${issue.repository.nameWithOwner}#${issue.number}`;
-    const actor = getDispatchActor(issue, knownAgentLogins, preferredAgentLogin);
+    const rawActor = getDispatchActor(issue, knownAgentLogins, preferredAgentLogin);
+    const isOverride = !rawActor?.id && Boolean(overrideActor?.id);
+    const actor = rawActor || (isOverride ? overrideActor : null);
     const targetRecord = serializeItem(target, knownAgentLogins, preferredAgentLogin, staleAfterMinutes);
     const mode = staleActiveIds.has(target.id) ? 'recovery' : 'dispatch';
 
@@ -743,28 +776,36 @@ async function main() {
       if (!dryRun) {
         await ensureLabelExists(issue.repository.nameWithOwner, meta.label);
         await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
-        await assignIssueToAgent(
-          issue.id,
-          nextActorIds,
-          issue.repository.id,
-          baseRef,
-          buildAgentInstructions(role, issueRef, issue.number, mode),
-          model
-        );
-        await addIssueComment(
-          issue.id,
-          mode === 'recovery'
-            ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
-            : buildAssignmentComment(role, issueRef)
-        );
+        if (isOverride) {
+          await replaceAssignableActors(issue.id, nextActorIds);
+          await addIssueComment(issue.id, buildOverrideComment(role, issueRef, actor.login));
+        } else {
+          await assignIssueToAgent(
+            issue.id,
+            nextActorIds,
+            issue.repository.id,
+            baseRef,
+            buildAgentInstructions(role, issueRef, issue.number, mode),
+            model
+          );
+          await addIssueComment(
+            issue.id,
+            mode === 'recovery'
+              ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
+              : buildAssignmentComment(role, issueRef)
+          );
+        }
         result.executed = true;
       } else {
         result.executed = false;
-        result.previewComment =
-          mode === 'recovery'
+        result.previewComment = isOverride
+          ? buildOverrideComment(role, issueRef, actor.login)
+          : mode === 'recovery'
             ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
             : buildAssignmentComment(role, issueRef);
-        result.previewInstructions = buildAgentInstructions(role, issueRef, issue.number, mode);
+        result.previewInstructions = isOverride
+          ? null
+          : buildAgentInstructions(role, issueRef, issue.number, mode);
         result.previewLabels = nextLabels;
         result.previewActorIds = nextActorIds;
       }
@@ -808,7 +849,7 @@ async function main() {
     result.assignedIssue = issueRef;
     result.assignedAgent = actor.login || preferredAgentLogin;
     result.baseRef = baseRef;
-    result.dispatchActorSource = targetRecord.dispatchActorSource;
+    result.dispatchActorSource = isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource;
     result.assignmentAttempts.push({
       issue: targetRecord.issue,
       status: dryRun ? 'preview' : mode === 'recovery' ? 'redispatched' : 'assigned',
@@ -816,7 +857,7 @@ async function main() {
         mode === 'recovery'
           ? 'Primeira execução travada e atribuível encontrada para retomada automática.'
           : 'Primeira task elegível e atribuível encontrada.',
-      dispatchActorSource: targetRecord.dispatchActorSource,
+      dispatchActorSource: isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource,
     });
 
     const outPath = writeOutputFile(result);
@@ -829,7 +870,7 @@ async function main() {
           mode,
           assignedIssue: issueRef,
           assignedAgent: actor.login || preferredAgentLogin,
-          dispatchActorSource: targetRecord.dispatchActorSource,
+          dispatchActorSource: isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource,
           outPath,
         },
         null,

@@ -37,6 +37,7 @@ jobs:
           AGENT_KNOWN_LOGINS: copilot-swe-agent,copilot
           AGENT_COPILOT_BASE_REF: master
           AGENT_COPILOT_MODEL: ''
+          AGENT_ASSIGNEE_OVERRIDE: ${{ secrets.AGENT_ASSIGNEE_OVERRIDE || 'luizkim' }}
           AGENT_REDISPATCH_STALE_ACTIVE: true
           AGENT_STALE_AFTER_MINUTES: 30
           AGENT_OUTPUT_DIR: ./.developer-output

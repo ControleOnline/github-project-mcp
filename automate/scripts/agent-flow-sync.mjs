@@ -17,7 +17,7 @@ const AGENT_LABELS = {
 };
 
 const ALL_AGENT_LABELS = ['agent:developer', 'agent:security', 'agent:qa', 'agent:devops'];
-const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
+const DEFAULT_KNOWN_AGENT_LOGINS = 'github-copilot[bot],copilot-swe-agent,copilot';
 const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
 const RETRY = githubRetryConfig('FLOW');
 const LABEL_META = {

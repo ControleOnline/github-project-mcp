@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 
 const GITHUB_API_URL = 'https://api.github.com/graphql';
-const DEFAULT_AGENT_LOGIN = 'copilot-swe-agent';
-const DEFAULT_AGENT_LOGINS = 'copilot-swe-agent,copilot';
+const DEFAULT_AGENT_LOGIN = 'github-copilot[bot]';
+const DEFAULT_AGENT_LOGINS = 'github-copilot[bot],copilot-swe-agent,copilot';
 
 function env(name, fallback = '') {
   return (process.env[name] || fallback).trim();

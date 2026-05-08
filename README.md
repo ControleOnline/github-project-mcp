@@ -77,8 +77,9 @@ Fluxo esperado:
 12. Só usar coluna para o passo final de `DevOps` -> `In Review`.
 13. Issue bloqueada por `ops:copilot-unavailable` que já tenha PR aberto vinculado não deve ser tratada como fila virgem de `Developer`; nesse caso a leitura correta passa a ser backlog de review ou composição até que a trilha de PR seja concluída ou descartada.
 14. O supervisor do CTO audita os repositórios prioritários também pela saúde observável de GitHub Actions; se existir workflow versionado em `.github/workflows/`, mas o catálogo de Actions continuar vazio ou indisponível, o repositório deve ser tratado como bloqueio de plataforma ou onboarding.
-15. Os runners centrais usam `concurrency` por workflow e branch para serializar execuções sobrepostas do mesmo fluxo, evitando comentário duplicado, disputa de mutação e leitura inconsistente da mesma fila quando coincidem `schedule`, `push` e reexecução manual.
-16. O CTO não deve repetir comentário de auditoria na mesma issue quando a rodada não trouxer evidência nova, correção publicada, alteração de ownership ou novo próximo marco objetivo; nessas situações, a revalidação deve ficar no artifact central ou na memória operacional.
+15. O supervisor do CTO também cruza os runs recentes do Actions e os status checks publicados nos PRs abertos dos repositórios prioritários, para separar bloqueio de plataforma, falha de pipeline e backlog real de composição.
+16. Os runners centrais usam `concurrency` por workflow e branch para serializar execuções sobrepostas do mesmo fluxo, evitando comentário duplicado, disputa de mutação e leitura inconsistente da mesma fila quando coincidem `schedule`, `push` e reexecução manual.
+17. O CTO não deve repetir comentário de auditoria na mesma issue quando a rodada não trouxer evidência nova, correção publicada, alteração de ownership ou novo próximo marco objetivo; nessas situações, a revalidação deve ficar no artifact central ou na memória operacional.
 
 A retomada automática evita lock indefinido da fila do `Developer` quando uma execução antiga fica parada ou quando a issue é devolvida manualmente sem limpeza operacional completa.
 
@@ -164,6 +165,18 @@ FLOW_KNOWN_AGENT_LOGINS=copilot-swe-agent,copilot
 FLOW_OUTPUT_DIR=./.flow-output
 ```
 
+### CTO
+
+```bash
+CTO_PROJECT_ORG=ControleOnline
+CTO_PROJECT_NUMBER=1
+CTO_DRY_RUN=false
+CTO_PRIORITY_WORKFLOW_RUN_LOOKBACK=10
+CTO_OUTPUT_DIR=./.cto-output
+```
+
+- `CTO_PRIORITY_WORKFLOW_RUN_LOOKBACK=10`: define quantos runs recentes de Actions o supervisor do CTO deve inspecionar por repositório prioritário ao montar a saúde operacional.
+
 ### Retry
 
 ```bash
@@ -206,6 +219,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - conflito apenas em submódulo ou repositório satélite, sem PR agregador aberto no repositório da issue, deve voltar para `Developer`
 - issue com `ops:copilot-unavailable` e PR aberto vinculado deve ser tratada como backlog de review/composição, não como fila virgem de captura
 - o supervisor do CTO deve tratar como bloqueio de plataforma os repositórios prioritários que já tenham workflow versionado, mas ainda não exponham catálogo observável de Actions
+- o supervisor do CTO também deve tratar como bloqueio operacional os repositórios prioritários cujo run mais recente do Actions falhou ou cujos PRs abertos ainda publiquem checks em erro
 - falhas transitórias de GitHub, rede e autenticação devem usar retry automático antes de falhar a rodada
 - Cada agent só pode concluir a task repassando para um próximo agent válido, ou para `In Review` no caso do DevOps.
 - O fluxo de Security pode acionar o Copilot cloud agent para aprofundar a investigação antes da decisão final, quando configurado.

@@ -48,7 +48,7 @@ jobs:
           CTO_WORK_STATUS: Work
           CTO_IN_REVIEW_STATUS: In Review
           CTO_DONE_STATUS: Done
-          CTO_KNOWN_AGENT_LOGINS: copilot-swe-agent,copilot
+          CTO_KNOWN_AGENT_LOGINS: github-copilot[bot],copilot-swe-agent,copilot
           CTO_UNSUPPORTED_LABEL: ops:copilot-unavailable
           CTO_OUTPUT_DIR: ./.cto-output
 

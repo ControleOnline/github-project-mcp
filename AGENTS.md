@@ -78,6 +78,8 @@ Regras desse supervisor:
 - ele não deve publicar comentário recorrente na mesma issue apenas para repetir uma revalidação sem mudança material
 - quando não houver fato novo verificável, a revalidação deve ficar no artifact central do CTO ou na memória operacional, não em novo comentário na issue
 - comentário novo em issue só é justificável quando houver mudança de diagnóstico, evidência operacional nova, correção publicada, alteração de ownership ou novo próximo marco objetivo
+- se o delta existir apenas no núcleo `cto-mcp`, a atualização deve ficar no artifact central do CTO, na memória operacional ou na trilha central correspondente, sem replicação automática nas issues dos repositórios consumidores
+- em issues de plataforma ou validação preventiva de `app-community`, `api-community` e `api-whatsapp`, comentário novo só é aceitável quando houver transição verificável no próprio repositório alvo, como primeiro `ops:copilot-unavailable`, limpeza observável de assignee técnico residual, novo PR vinculado, mudança real de `mergeable`, mudança de status check ou workflow run, habilitação do Copilot ou encerramento do bloqueio
 
 ## Evidência operacional
 

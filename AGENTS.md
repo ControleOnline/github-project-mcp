@@ -75,6 +75,9 @@ Regras desse supervisor:
 - ele só corrige estado de projeto quando o erro for inequívoco e verificável
 - a primeira responsabilidade dele é detectar tasks em `Done` incompatíveis com o fluxo oficial
 - ao corrigir um estado inválido, ele deve deixar comentário explicando a reversão e o motivo operacional
+- ele não deve publicar comentário recorrente na mesma issue apenas para repetir uma revalidação sem mudança material
+- quando não houver fato novo verificável, a revalidação deve ficar no artifact central do CTO ou na memória operacional, não em novo comentário na issue
+- comentário novo em issue só é justificável quando houver mudança de diagnóstico, evidência operacional nova, correção publicada, alteração de ownership ou novo próximo marco objetivo
 
 ## Evidência operacional
 

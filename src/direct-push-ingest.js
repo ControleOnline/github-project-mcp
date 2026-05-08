@@ -21,8 +21,8 @@ const CONFIG = {
   eventPath: process.env.GITHUB_EVENT_PATH,
   repairRefs: (process.env.PROJECT_REPAIR_REFS || '').split(',').map((item) => item.trim()).filter(Boolean),
   repairStatus: process.env.PROJECT_REPAIR_STATUS || 'Work',
-  developerAgentLogin: (process.env.DEVELOPER_AGENT_LOGIN || 'copilot-swe-agent').trim().toLowerCase(),
-  developerAgentLogins: (process.env.DEVELOPER_AGENT_LOGINS || 'copilot-swe-agent,copilot')
+  developerAgentLogin: (process.env.DEVELOPER_AGENT_LOGIN || 'github-copilot[bot]').trim().toLowerCase(),
+  developerAgentLogins: (process.env.DEVELOPER_AGENT_LOGINS || 'github-copilot[bot],copilot-swe-agent,copilot')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean),

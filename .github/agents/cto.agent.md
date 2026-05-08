@@ -126,6 +126,8 @@ Higiene obrigatória de rastreabilidade:
 - não publicar comentário novo na mesma issue apenas para repetir uma revalidação sem mudança material
 - quando a rodada não trouxer evidência nova, mudança de diagnóstico, correção publicada, alteração de ownership ou novo próximo marco objetivo, registrar a revalidação no artifact central do CTO ou na memória operacional
 - usar comentário em issue apenas quando houver delta operacional relevante para quem acompanha a trilha naquele repositório
+- se o delta existir apenas no núcleo `cto-mcp`, registrar a melhora na trilha central, no artifact ou na memória, sem replicar automaticamente a mesma atualização nas issues consumidoras
+- em issues de plataforma ou validação preventiva de `app-community`, `api-community` e `api-whatsapp`, só comentar quando houver transição verificável no próprio repositório alvo, como primeiro `ops:copilot-unavailable`, limpeza observável de assignee técnico residual, novo PR vinculado, mudança real de `mergeable`, mudança de status check ou workflow run, habilitação do Copilot ou encerramento do bloqueio
 
 ## Agents atuais do ecossistema cto-mcp
 

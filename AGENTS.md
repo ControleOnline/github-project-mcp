@@ -48,6 +48,7 @@ Quando um Copilot Agent atuar em qualquer projeto ControleOnline:
 9. Se houver conflito de merge em PR aberto, a responsabilidade operacional deve ir para `DevOps`.
 10. Ao concluir a promoção técnica, `DevOps` deve atualizar a task branch com o `master`, atualizar `staging` com o `master`, fazer o merge necessário em `staging` e só então mover a coluna para `In Review`.
 11. Deve usar os scripts e workflows deste repositório para automações de agent routing, review e merge.
+12. A existência de outra execução recente do mesmo agent não deve congelar a fila; o dispatcher deve continuar capturando outras tasks elegíveis e só priorizar a retomada da trilha travada quando ela própria estiver stale.
 
 ## Fronteira do CTO
 

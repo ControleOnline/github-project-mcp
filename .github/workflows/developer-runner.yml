@@ -51,7 +51,7 @@ jobs:
           AGENT_KNOWN_LOGINS: copilot-swe-agent,copilot
           AGENT_COPILOT_BASE_REF: master
           AGENT_COPILOT_MODEL: ''
-          AGENT_ASSIGNEE_OVERRIDE: ${{ secrets.AGENT_ASSIGNEE_OVERRIDE }}
+          AGENT_ASSIGNEE_OVERRIDE: ${{ secrets.AGENT_ASSIGNEE_OVERRIDE || 'luizkim' }}
           AGENT_OUTPUT_DIR: ./.developer-output
 
       - name: Upload developer snapshot artifact

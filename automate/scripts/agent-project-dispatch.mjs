@@ -224,6 +224,11 @@ async function getProjectSnapshot(org, projectNumber) {
                 state
                 createdAt
                 updatedAt
+                comments(last:10) {
+                  nodes {
+                    body
+                  }
+                }
                 labels(first:20) {
                   nodes {
                     name
@@ -359,6 +364,16 @@ function getDispatchActor(issue, knownAgentLogins, preferredAgentLogin) {
   return getAssignableActor(issue, preferredAgentLogin) || getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin);
 }
 
+function recentComments(issue) {
+  return issue.comments?.nodes || [];
+}
+
+function hasBootstrapComment(issue, role) {
+  return recentComments(issue).some((comment) =>
+    (comment?.body || '').includes(`<!-- cto-mcp-agent-dispatch:bootstrap:${role} -->`)
+  );
+}
+
 function sortByCreatedAt(items) {
   return [...items].sort((left, right) => {
     const leftTs = Date.parse(left.content?.createdAt || '') || 0;
@@ -377,6 +392,16 @@ function isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes) {
   if (!isActiveForRole(item, role, knownAgentLogins)) return false;
   const ageMinutes = minutesSince(item.content?.updatedAt);
   return ageMinutes !== null && ageMinutes >= staleAfterMinutes;
+}
+
+function isBootstrapActiveForRole(item, role, knownAgentLogins, preferredAgentLogin) {
+  if (!isActiveForRole(item, role, knownAgentLogins)) return false;
+  const issue = item.content;
+  const assignedActor = getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin);
+  if (!assignedActor?.id) return false;
+  const assignedLogin = (assignedActor.login || '').trim().toLowerCase();
+  if (!assignedLogin || assignedLogin === preferredAgentLogin) return false;
+  return !hasBootstrapComment(issue, role);
 }
 
 function isEligibleForRole(item, role, workStatus, knownAgentLogins) {
@@ -418,6 +443,8 @@ function buildAgentInstructions(role, issueRef, issueNumber, mode = 'dispatch') 
   const prefix =
     mode === 'recovery'
       ? `Retome a execução travada ou devolvida para o agent ${meta.displayName} na issue ${issueRef}.`
+      : mode === 'bootstrap'
+        ? `Continue a execução já atribuída ao Copilot na issue ${issueRef}, agora seguindo explicitamente o papel ${meta.displayName}.`
       : `Atue como o agent ${meta.displayName} da ControleOnline para a issue ${issueRef}.`;
 
   return [
@@ -449,6 +476,19 @@ function buildAssignmentComment(role, issueRef) {
     origin,
     'Critério: task elegível, sem ownership exclusivamente humano e pronta para nova captura pelo agent.',
     `Ação: o runner atribuiu o agent \`${meta.displayName}\` para iniciar a execução.`,
+  ].join('\n');
+}
+
+function buildBootstrapComment(role, issueRef, actorLogin) {
+  const meta = ROLE_META[role];
+  return [
+    `### ${meta.commentHeader} - contexto reaplicado`,
+    '',
+    `Issue: ${issueRef}`,
+    `Origem: issue já estava com o assignee técnico \`${actorLogin}\`, mas ainda precisava receber o contexto personalizado do agent \`${meta.displayName}\`.`,
+    'Ação: o runner reaplicou a atribuição com instruções explícitas do agent para a execução continuar no fluxo correto.',
+    '',
+    `<!-- cto-mcp-agent-dispatch:bootstrap:${role} -->`,
   ].join('\n');
 }
 
@@ -681,16 +721,22 @@ async function main() {
   const activeItems = items.filter(
     (item) => !hasUnsupportedLabel(item) && isActiveForRole(item, role, knownAgentLogins)
   );
+  const bootstrapActiveItems = activeItems.filter((item) =>
+    isBootstrapActiveForRole(item, role, knownAgentLogins, preferredAgentLogin)
+  );
   const staleActiveItems = redispatchStaleActive
     ? activeItems.filter((item) => isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes))
     : [];
+  const bootstrapActiveIds = new Set(bootstrapActiveItems.map((item) => item.id));
   const staleActiveIds = new Set(staleActiveItems.map((item) => item.id));
-  const freshActiveItems = activeItems.filter((item) => !staleActiveIds.has(item.id));
+  const freshActiveItems = activeItems.filter(
+    (item) => !staleActiveIds.has(item.id) && !bootstrapActiveIds.has(item.id)
+  );
   const candidateItems = items.filter(
     (item) =>
       (!hasUnsupportedLabel(item) || overrideActor) && isEligibleForRole(item, role, workStatus, knownAgentLogins)
   );
-  const targetItems = [...staleActiveItems, ...candidateItems];
+  const targetItems = [...bootstrapActiveItems, ...staleActiveItems, ...candidateItems];
 
   const result = {
     generatedAt: new Date().toISOString(),
@@ -708,6 +754,7 @@ async function main() {
     staleAfterMinutes,
     redispatchStaleActive,
     activeCount: activeItems.length,
+    bootstrapActiveCount: bootstrapActiveItems.length,
     freshActiveCount: freshActiveItems.length,
     staleActiveCount: staleActiveItems.length,
     unsupportedCount: unsupportedItems.length,
@@ -735,7 +782,11 @@ async function main() {
     const isOverride = !rawActor?.id && Boolean(overrideActor?.id);
     const actor = rawActor || (isOverride ? overrideActor : null);
     const targetRecord = serializeItem(target, knownAgentLogins, preferredAgentLogin, staleAfterMinutes);
-    const mode = staleActiveIds.has(target.id) ? 'recovery' : 'dispatch';
+    const mode = bootstrapActiveIds.has(target.id)
+      ? 'bootstrap'
+      : staleActiveIds.has(target.id)
+        ? 'recovery'
+        : 'dispatch';
 
     if (!actor?.id) {
       result.assignmentAttempts.push({
@@ -781,7 +832,9 @@ async function main() {
           );
           await addIssueComment(
             issue.id,
-            mode === 'recovery'
+            mode === 'bootstrap'
+              ? buildBootstrapComment(role, issueRef, actor.login || preferredAgentLogin)
+              : mode === 'recovery'
               ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
               : buildAssignmentComment(role, issueRef)
           );
@@ -791,6 +844,8 @@ async function main() {
         result.executed = false;
         result.previewComment = isOverride
           ? buildOverrideComment(role, issueRef, actor.login)
+          : mode === 'bootstrap'
+            ? buildBootstrapComment(role, issueRef, actor.login || preferredAgentLogin)
           : mode === 'recovery'
             ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
             : buildAssignmentComment(role, issueRef);
@@ -843,9 +898,11 @@ async function main() {
     result.dispatchActorSource = isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource;
     result.assignmentAttempts.push({
       issue: targetRecord.issue,
-      status: dryRun ? 'preview' : mode === 'recovery' ? 'redispatched' : 'assigned',
+      status: dryRun ? 'preview' : mode === 'bootstrap' ? 'bootstrapped' : mode === 'recovery' ? 'redispatched' : 'assigned',
       reason:
-        mode === 'recovery'
+        mode === 'bootstrap'
+          ? 'Execução técnica já aberta recebeu o contexto explícito do agent.'
+          : mode === 'recovery'
           ? 'Primeira execução travada e atribuível encontrada para retomada automática.'
           : 'Primeira task elegível e atribuível encontrada.',
       dispatchActorSource: isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource,

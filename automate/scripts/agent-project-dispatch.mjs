@@ -46,8 +46,8 @@ const ROLE_META = {
 };
 
 const ALL_AGENT_LABELS = Object.values(ROLE_META).map((entry) => entry.label);
-const DEFAULT_AGENT_LOGIN = 'copilot-swe-agent';
-const DEFAULT_KNOWN_AGENT_LOGINS = 'copilot-swe-agent,copilot';
+const DEFAULT_AGENT_LOGIN = 'github-copilot[bot]';
+const DEFAULT_KNOWN_AGENT_LOGINS = 'github-copilot[bot],copilot-swe-agent,copilot';
 const DEFAULT_STALE_AFTER_MINUTES = '30';
 const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
 const RETRY = githubRetryConfig('AGENT');

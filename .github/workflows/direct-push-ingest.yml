@@ -35,8 +35,8 @@ jobs:
           PROJECT_NUMBER: 1
           DEVOPS_UNTRACKED_STATUS: Work
           PROJECT_REPAIR_STATUS: Work
-          DEVELOPER_AGENT_LOGIN: copilot-swe-agent
-          DEVELOPER_AGENT_LOGINS: copilot-swe-agent,copilot
+          DEVELOPER_AGENT_LOGIN: github-copilot[bot]
+          DEVELOPER_AGENT_LOGINS: github-copilot[bot],copilot-swe-agent,copilot
           DEVELOPER_COPILOT_BASE_REF: master
           DEVELOPER_COPILOT_MODEL: ''
           DIRECT_PUSH_ASSIGN_DEVELOPER: true

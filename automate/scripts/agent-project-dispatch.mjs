@@ -687,7 +687,8 @@ async function main() {
   const staleActiveIds = new Set(staleActiveItems.map((item) => item.id));
   const freshActiveItems = activeItems.filter((item) => !staleActiveIds.has(item.id));
   const candidateItems = items.filter(
-    (item) => !hasUnsupportedLabel(item) && isEligibleForRole(item, role, workStatus, knownAgentLogins)
+    (item) =>
+      (!hasUnsupportedLabel(item) || overrideActor) && isEligibleForRole(item, role, workStatus, knownAgentLogins)
   );
   const targetItems = [...staleActiveItems, ...candidateItems];
 
@@ -761,7 +762,10 @@ async function main() {
     }
 
     const currentLabels = issueLabels(issue);
-    const nextLabels = [...new Set([...currentLabels.filter((label) => !ALL_AGENT_LABELS.includes(label)), meta.label])];
+    const labelsToStrip = isOverride
+      ? [...ALL_AGENT_LABELS, unsupportedLabel]
+      : ALL_AGENT_LABELS;
+    const nextLabels = [...new Set([...currentLabels.filter((label) => !labelsToStrip.includes(label)), meta.label])];
     const blockedLabels = [
       ...new Set([...currentLabels.filter((label) => !ALL_AGENT_LABELS.includes(label)), unsupportedLabel]),
     ];

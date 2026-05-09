@@ -1,33 +1,30 @@
 # DevOps Agent
 
-Este é o ponto de entrada canônico do agent `devops` para todo o ecossistema `ControleOnline`.
+Este e o ponto de entrada canonico do agent `devops` para todo o ecossistema `ControleOnline`.
 
 ## Como usar
 
 Todo wrapper local de `devops` deve apontar para este arquivo.
 
-Ao iniciar uma execução:
+Ao iniciar uma execucao:
 
 1. leia este arquivo
-2. leia `automation/devops/base.md`
-3. consulte o contexto local do repositório e confirme que o agente responsável atual da tarefa é `DevOps`
+2. leia `skills/README.md`
+3. leia `skills/shared/README.md`
+4. leia `skills/shared/agent-execution-baseline.md`
+5. leia `skills/shared/agent-handoff-governance.md`
+6. leia `skills/agents/devops/README.md`
+7. leia `automation/devops/base.md`
+8. confirme o contexto local do repositorio antes de promover qualquer etapa
 
 ## Papel
 
-O agent `devops` corrige trilha operacional, automações e desvios de fluxo, e também promove entregas aprovadas para `staging` antes de mover a tarefa para `In Review`.
+O agent `devops` corrige trilha operacional, automacoes e desvios de fluxo, e tambem promove entregas aprovadas para `staging` antes de mover a tarefa para `In Review`.
 
-Esse papel inclui resolver conflitos de merge quando qualquer etapa do fluxo ficar bloqueada por eles.
+## Regras especificas
 
-## Visão do sistema
-
-Este agent conhece o sistema inteiro da `ControleOnline`, por completo.
-
-Ele deve enxergar o fluxo operacional completo entre repositórios, submódulos, automações, workflows, branches e status.
-
-## Regras centrais
-
-- use `automation/devops/base.md` como regra-base obrigatória
-- consulte também `automate/devops/README.md` e os workflows ou scripts relacionados
-- não trate push direto ou desvio operacional como entrega pronta
-- restaure a relação correta entre issue, branch, PR e agent responsável antes de promover qualquer etapa
-- quando receber a task por conflito, resolva o bloqueio e devolva para o agent correto se a revisão de conteúdo ainda não tiver terminado
+- use `automation/devops/base.md` como regra-base obrigatoria
+- consulte tambem `automate/devops/README.md` e os workflows ou scripts relacionados
+- nao trate push direto ou desvio operacional como entrega pronta
+- restaure a relacao correta entre issue, branch, PR e agent responsavel antes de promover qualquer etapa
+- quando receber a task por conflito, resolva o bloqueio e devolva para o agent correto se a revisao de conteudo ainda nao tiver terminado

@@ -83,6 +83,7 @@ Fluxo esperado:
 18. Quando a mudança material existir apenas no núcleo `cto-mcp`, ela deve ser registrada na trilha central, no artifact ou na memória, sem replicação automática nas issues consumidoras.
 19. Em issues de plataforma ou validação preventiva de `app-community`, `api-community` e `api-whatsapp`, comentário novo só é aceitável quando houver transição verificável no próprio repositório alvo, como primeiro `ops:copilot-unavailable`, limpeza observável de assignee técnico residual, novo PR vinculado, mudança real de `mergeable`, mudança de status check ou workflow run, habilitação do Copilot ou encerramento do bloqueio.
 20. Issue aberta com `agent:*`, assignee humano e sem assignee técnico conhecido do agent deve ser lida como `override manual ativo`: esse estado prova atividade do fluxo, mas ainda não prova captura first-party bem-sucedida do Copilot. A auditoria do CTO deve separar esse caso de `ops:copilot-unavailable` e de fila virgem.
+21. Enquanto esse `override manual ativo` continuar presente, o dispatcher não deve recapturar a mesma issue nem republicar comentário de início do agent; a retomada automática só vale para assignee técnico real do agent.
 
 A retomada automática evita lock indefinido da fila do `Developer` quando uma execução antiga fica parada ou quando a issue é devolvida manualmente sem limpeza operacional completa.
 
@@ -226,6 +227,7 @@ Na rodada seguinte, a automação lê essa evidência e aplica as regras de `aut
 - conflito apenas em submódulo ou repositório satélite, sem PR agregador aberto no repositório da issue, deve voltar para `Developer`
 - issue com `ops:copilot-unavailable` e PR aberto vinculado deve ser tratada como backlog de review/composição, não como fila virgem de captura
 - issue com `agent:*`, assignee humano e sem assignee técnico conhecido do Copilot deve ser tratada como `override manual ativo`, não como fila virgem nem como bloqueio puro
+- issue em `override manual ativo` não deve ser recapturada pelo dispatcher enquanto o mesmo owner humano continuar nela sem assignee técnico do agent
 - o supervisor do CTO deve tratar como bloqueio de plataforma os repositórios prioritários que já tenham workflow versionado, mas ainda não exponham catálogo observável de Actions
 - o supervisor do CTO também deve tratar como bloqueio operacional os repositórios prioritários cujos PRs abertos ainda publiquem checks em erro
 - o supervisor do CTO precisa validar também a saúde observável do próprio `cto-mcp` antes de concluir que o gargalo está só nos repositórios consumidores

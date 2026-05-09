@@ -136,8 +136,8 @@ Mantenha como referência explícita os agents abaixo e seus pontos operacionais
 ### Developer
 
 - Papel principal: porta de entrada de tasks novas em `Work`, respeita ownership humano, associa o agent correto e inicia a execução operacional
-- Runner: `automate/workflows/developer-project-dispatch.yml` -> executa `node src/developer-runner.js`
-- Lógica principal: `automate/scripts/agent-project-dispatch.mjs`
+- Runner: `.github/workflows/developer-runner.yml` -> executa `node src/developer-runner.js`
+- Lógica principal observável em `master`: `automate/scripts/agent-project-dispatch.mjs`, com wrapper em `automate/agents/developer/dispatch.mjs`
 
 ### Sincronizador de fluxo
 
@@ -160,7 +160,7 @@ Mantenha como referência explícita os agents abaixo e seus pontos operacionais
 ### DevOps
 
 - Papel principal: resolve conflitos operacionais, sincroniza `master`, promove para `staging` e move a task para `In Review`
-- Runner: `src/devops-runner.js` como wrapper operacional atual; validar no repositório o workflow ativo correspondente antes de encerrar qualquer encaminhamento substantivo
+- Runner: `.github/workflows/devops-runner.yml` -> executa `node src/devops-runner.js`
 - Política principal: `automate/staging-merge.md`
 
 ### Supervisor do CTO

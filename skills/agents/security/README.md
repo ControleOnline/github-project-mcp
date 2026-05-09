@@ -4,6 +4,11 @@
 
 `Security` revisa entregas vindas de `Developer` e decide entre `Developer`, `Quality Assurance` e `DevOps`.
 
+## Skills compartilhadas essenciais
+
+- `skills/shared/agent-execution-baseline.md`
+- `skills/shared/agent-handoff-governance.md`
+
 ## Ownership
 
 - label oficial: `agent:security`

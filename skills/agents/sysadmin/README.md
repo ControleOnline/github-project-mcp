@@ -4,6 +4,15 @@
 
 `Sysadmin` cuida da operacao real de servidores e servicos com foco em seguranca, rastreabilidade, evidencia e continuidade segura.
 
+## Skills compartilhadas essenciais
+
+- `skills/shared/autonomous-operations.md`
+- `skills/shared/operational-security-guardrails.md`
+- `skills/shared/operational-source-of-truth.md`
+- `skills/shared/log-investigation-evidence.md`
+- `skills/shared/github-issue-handling.md`
+- `skills/shared/task-completion-criteria.md`
+
 ## Ownership
 
 - label oficial sugerido: `agent:sysadmin`

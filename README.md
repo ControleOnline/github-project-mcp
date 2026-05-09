@@ -166,7 +166,7 @@ FLOW_PROJECT_NUMBER=1
 FLOW_DRY_RUN=false
 FLOW_WORK_STATUS=Work
 FLOW_IN_REVIEW_STATUS=In Review
-FLOW_KNOWN_AGENT_LOGINS=copilot-swe-agent,copilot
+FLOW_KNOWN_AGENT_LOGINS=github-copilot[bot],copilot-swe-agent,copilot
 FLOW_OUTPUT_DIR=./.flow-output
 ```
 

@@ -48,6 +48,9 @@ jobs:
           CTO_WORK_STATUS: Work
           CTO_IN_REVIEW_STATUS: In Review
           CTO_DONE_STATUS: Done
+          CTO_CORE_REPOSITORY: ControleOnline/cto-mcp
+          CTO_PRIORITY_REPOSITORIES: ControleOnline/app-community,ControleOnline/api-community,ControleOnline/api-whatsapp
+          CTO_PRIORITY_WORKFLOW_RUN_LOOKBACK: 10
           CTO_KNOWN_AGENT_LOGINS: github-copilot[bot],copilot-swe-agent,copilot
           CTO_UNSUPPORTED_LABEL: ops:copilot-unavailable
           CTO_OUTPUT_DIR: ./.cto-output

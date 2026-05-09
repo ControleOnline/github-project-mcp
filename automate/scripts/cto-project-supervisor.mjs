@@ -693,56 +693,56 @@ async function fetchCombinedStatusForCommit(repoFullName, ref) {
   }
 }
 
-async function fetchOpenPullRequestsForRepository(repoFullName) {
-  const [owner, repo] = repoFullName.split('/');
-  const pullRequests = await githubRest(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`);
-  const detailedPullRequests = [];
-
-  for (const pullRequest of pullRequests) {
-    const detail = await githubRest(`/repos/${owner}/${repo}/pulls/${pullRequest.number}`);
-    const headSha = detail.head?.sha || null;
-    const combinedStatus = headSha ? await fetchCombinedStatusForCommit(repoFullName, headSha) : null;
-    detailedPullRequests.push({
-      ref: `${repoFullName}#${detail.number}`,
-      repository: repoFullName,
-      title: detail.title,
-      url: detail.html_url || detail.url,
-      state: (detail.state || '').toUpperCase(),
-      isDraft: Boolean(detail.draft),
-      mergeable: detail.mergeable,
-      reviewDecision: null,
-      createdAt: detail.created_at,
-      updatedAt: detail.updated_at,
-      ageHours: ageHours(detail.updated_at),
-      mergedAt: detail.merged_at,
-      headSha,
-      combinedStatus,
-    });
+async function fetchOpenPullRequestsForRepository(repository) {
+  const [owner, repo] = repository.split('/');
+  const pullRequests = [];
+  for (let page = 1; page <= 5; page += 1) {
+    const pagePullRequests = await githubRest(
+      `/repos/${owner}/${repo}/pulls?state=open&per_page=100&page=${page}`
+    );
+    if (!Array.isArray(pagePullRequests) || pagePullRequests.length === 0) break;
+    for (const pr of pagePullRequests) {
+      const combinedStatus = await fetchCombinedStatusForCommit(repository, pr.head?.sha || pr.head?.ref || pr.number);
+      pullRequests.push({
+        ref: `${repository}#${pr.number}`,
+        repository,
+        number: pr.number,
+        title: pr.title,
+        url: pr.html_url,
+        state: pr.state?.toUpperCase() || 'OPEN',
+        isDraft: Boolean(pr.draft),
+        mergeable: pr.mergeable,
+        reviewDecision: null,
+        createdAt: pr.created_at || null,
+        updatedAt: pr.updated_at || null,
+        ageHours: ageHours(pr.updated_at || pr.created_at || null),
+        mergedAt: pr.merged_at || null,
+        headSha: pr.head?.sha || null,
+        combinedStatus,
+      });
+    }
+    if (pagePullRequests.length < 100) break;
   }
-
-  return detailedPullRequests;
+  return pullRequests;
 }
 
 async function fetchPriorityRepositoryPullRequests(repositories) {
-  const entries = [];
-  for (const repository of repositories) {
-    entries.push([repository, await fetchOpenPullRequestsForRepository(repository)]);
-  }
+  const entries = await Promise.all(
+    repositories.map(async (repository) => [repository, await fetchOpenPullRequestsForRepository(repository)])
+  );
   return new Map(entries);
 }
 
-async function fetchRepositoryWorkflowFiles(repoFullName) {
-  const [owner, repo] = repoFullName.split('/');
+async function fetchWorkflowFiles(repository) {
+  const [owner, repo] = repository.split('/');
   try {
-    const entries = await githubRest(`/repos/${owner}/${repo}/contents/.github/workflows`);
-    if (!Array.isArray(entries)) return [];
-    return entries
-      .filter((entry) => entry?.type === 'file')
-      .map((entry) => ({
-        name: entry.name,
-        path: entry.path,
-        sha: entry.sha,
-      }));
+    const contents = await githubRest(`/repos/${owner}/${repo}/contents/.github/workflows`);
+    const files = Array.isArray(contents)
+      ? contents
+          .filter((entry) => entry?.type === 'file')
+          .map((entry) => ({ path: entry.path, name: entry.name, sha: entry.sha }))
+      : [];
+    return { files, errorStatus: null, errorMessage: null };
   } catch (error) {
     let payload = {};
     try {
@@ -750,19 +750,22 @@ async function fetchRepositoryWorkflowFiles(repoFullName) {
     } catch {
       payload = {};
     }
-    if (payload.status === 404) return [];
-    throw error;
+    return {
+      files: [],
+      errorStatus: payload.status || null,
+      errorMessage: payload.body?.message || payload.message || String(error || ''),
+    };
   }
 }
 
-async function fetchRepositoryActionsCatalog(repoFullName) {
-  const [owner, repo] = repoFullName.split('/');
+async function fetchActionsWorkflowCatalog(repository) {
+  const [owner, repo] = repository.split('/');
   try {
-    const payload = await githubRest(`/repos/${owner}/${repo}/actions/workflows?per_page=100`);
+    const payload = await githubRest(`/repos/${owner}/${repo}/actions/workflows?per_page=100&page=1`);
     return {
       state: 'available',
-      totalCount: payload.total_count || 0,
-      workflows: (payload.workflows || []).map((workflow) => ({
+      totalCount: payload?.total_count || 0,
+      workflows: (payload?.workflows || []).map((workflow) => ({
         id: workflow.id,
         name: workflow.name,
         path: workflow.path,
@@ -788,16 +791,18 @@ async function fetchRepositoryActionsCatalog(repoFullName) {
   }
 }
 
-async function fetchRepositoryRecentWorkflowRuns(repoFullName, perPage) {
-  const [owner, repo] = repoFullName.split('/');
+async function fetchRecentWorkflowRuns(repository, lookback) {
+  const [owner, repo] = repository.split('/');
   try {
-    const payload = await githubRest(`/repos/${owner}/${repo}/actions/runs?per_page=${perPage}`);
-    const runs = (payload.workflow_runs || []).map(normalizeWorkflowRun);
+    const payload = await githubRest(`/repos/${owner}/${repo}/actions/runs?per_page=${lookback}&page=1`);
+    const recentRuns = (payload?.workflow_runs || []).slice(0, lookback).map(normalizeWorkflowRun);
     return {
-      totalCount: payload.total_count || runs.length,
-      latestRun: runs[0] || null,
-      failingRuns: runs.filter((run) => run.conclusion === 'failure'),
-      recentRuns: runs,
+      totalCount: payload?.total_count || recentRuns.length,
+      latestRun: recentRuns[0] || null,
+      failingRuns: recentRuns.filter(
+        (run) => run.status === 'completed' && ['failure', 'action_required', 'timed_out', 'cancelled'].includes(run.conclusion)
+      ),
+      recentRuns,
       errorStatus: null,
       errorMessage: null,
     };
@@ -820,19 +825,27 @@ async function fetchRepositoryRecentWorkflowRuns(repoFullName, perPage) {
 }
 
 async function fetchPriorityRepositoryAutomationHealth(repositories, workflowRunLookback) {
-  const entries = [];
-  for (const repository of repositories) {
-    const workflowFiles = await fetchRepositoryWorkflowFiles(repository);
-    const actionsCatalog = await fetchRepositoryActionsCatalog(repository);
-    const recentWorkflowRuns = await fetchRepositoryRecentWorkflowRuns(repository, workflowRunLookback);
-    entries.push([repository, { workflowFiles, actionsCatalog, recentWorkflowRuns }]);
-  }
+  const entries = await Promise.all(
+    repositories.map(async (repository) => {
+      const workflowFiles = await fetchWorkflowFiles(repository);
+      const actionsCatalog = await fetchActionsWorkflowCatalog(repository);
+      const recentWorkflowRuns = await fetchRecentWorkflowRuns(repository, workflowRunLookback);
+      return [
+        repository,
+        {
+          workflowFiles: workflowFiles.files,
+          actionsCatalog,
+          recentWorkflowRuns,
+        },
+      ];
+    })
+  );
   return new Map(entries);
 }
 
 function summarizePriorityRepositories(
   priorityRepositories,
-  repositoryItems,
+  priorityOperationalIssues,
   repositoryPullRequestMap,
   repositoryAutomationHealthMap,
   staleHours,
@@ -840,21 +853,21 @@ function summarizePriorityRepositories(
   staleOpenPrHours
 ) {
   return priorityRepositories.map((repository) => {
-    const snapshots = repositoryItems.filter((entry) => entry.issue.repository === repository);
+    const snapshots = priorityOperationalIssues.filter((entry) => entry.issue.repository === repository);
     const unsupportedIssues = snapshots.filter((entry) => entry.hasUnsupportedLabel);
     const activeAgentIssues = snapshots.filter((entry) => entry.hasAgentLabel || entry.hasKnownAgentAssignee);
     const openPullRequests = snapshots.flatMap((entry) => openPullRequestsForSnapshot(entry));
+    const repositoryOpenPullRequests = repositoryPullRequestMap.get(repository) || [];
     const draftPullRequests = openPullRequests.filter((pr) => pr.isDraft);
     const staleDraftPullRequests = draftPullRequests.filter(
       (pr) => pr.ageHours !== null && pr.ageHours >= staleDraftHours
     );
     const conflictingPullRequests = openPullRequests.filter((pr) => mergeConflictForPr(pr));
     const reviewPendingPullRequests = openPullRequests.filter((pr) => reviewPendingForPr(pr));
-    const repositoryOpenPullRequests = repositoryPullRequestMap.get(repository) || [];
-    const pullRequestsWithFailingChecks = repositoryOpenPullRequests.filter(
+    const pullRequestsWithFailingChecks = openPullRequests.filter(
       (pr) => (pr.combinedStatus?.failingContexts || []).length > 0
     );
-    const pullRequestsWithPendingChecks = repositoryOpenPullRequests.filter(
+    const pullRequestsWithPendingChecks = openPullRequests.filter(
       (pr) => (pr.combinedStatus?.pendingContexts || []).length > 0
     );
     const automation = repositoryAutomationHealthMap.get(repository) || {
@@ -1081,20 +1094,20 @@ function summarizeCoreRepositoryHealth(
     failingCheckContextsByPullRequest: pullRequestsWithFailingChecks.map((pr) => ({
       ref: pr.ref,
       contexts: (pr.combinedStatus?.failingContexts || []).map((status) => ({
-        context: status.context,
-        state: status.state,
-        description: status.description,
-        targetUrl: status.targetUrl,
-      })),
+          context: status.context,
+          state: status.state,
+          description: status.description,
+          targetUrl: status.targetUrl,
+        })),
     })),
     pendingCheckContextsByPullRequest: pullRequestsWithPendingChecks.map((pr) => ({
       ref: pr.ref,
       contexts: (pr.combinedStatus?.pendingContexts || []).map((status) => ({
-        context: status.context,
-        state: status.state,
-        description: status.description,
-        targetUrl: status.targetUrl,
-      })),
+          context: status.context,
+          state: status.state,
+          description: status.description,
+          targetUrl: status.targetUrl,
+        })),
     })),
   };
 }
@@ -1410,7 +1423,7 @@ async function main() {
         staleBlockedPriorityRepositoryCount: result.staleBlockedPriorityRepositoryCount,
         actionsBlockedPriorityRepositoryCount: result.actionsBlockedPriorityRepositoryCount,
         failingCheckPriorityPullRequestCount: result.failingCheckPriorityPullRequestCount,
-        untrackedPriorityOpenPullRequestCount: result.untrackedOpenPullRequestCount,
+        untrackedPriorityOpenPullRequestCount: result.untrackedPriorityOpenPullRequestCount,
         priorityPullRequestAttentionCount: result.priorityPullRequestAttentionCount,
         actionCount: actions.length,
         outPath,

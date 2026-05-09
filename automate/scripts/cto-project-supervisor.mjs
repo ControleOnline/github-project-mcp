@@ -12,6 +12,7 @@ const REST_API_URL = 'https://api.github.com';
 const ALL_AGENT_LABELS = ['agent:developer', 'agent:security', 'agent:qa', 'agent:devops'];
 const DEFAULT_KNOWN_AGENT_LOGINS = 'github-copilot[bot],copilot-swe-agent,copilot';
 const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
+const DEFAULT_CORE_REPOSITORY = 'ControleOnline/cto-mcp';
 const DEFAULT_PRIORITY_REPOSITORIES =
   'ControleOnline/app-community,ControleOnline/api-community,ControleOnline/api-whatsapp';
 const DEFAULT_STALE_HOURS = '24';
@@ -638,8 +639,12 @@ function summarizeUnsupportedCopilot(blockedIssues) {
     .sort((a, b) => a.repository.localeCompare(b.repository));
 }
 
+function normalizeRepositoryName(org, repository) {
+  return repository.includes('/') ? repository : `${org}/${repository}`;
+}
+
 function normalizePriorityRepositories(org, repositories) {
-  return repositories.map((repository) => (repository.includes('/') ? repository : `${org}/${repository}`));
+  return repositories.map((repository) => normalizeRepositoryName(org, repository));
 }
 
 function classifyPriorityOperationalItem(item, knownAgentLogins, unsupportedLabel, priorityRepositorySet) {
@@ -718,9 +723,9 @@ async function fetchOpenPullRequestsForRepository(repoFullName) {
   return detailedPullRequests;
 }
 
-async function fetchPriorityRepositoryPullRequests(priorityRepositories) {
+async function fetchPriorityRepositoryPullRequests(repositories) {
   const entries = [];
-  for (const repository of priorityRepositories) {
+  for (const repository of repositories) {
     entries.push([repository, await fetchOpenPullRequestsForRepository(repository)]);
   }
   return new Map(entries);
@@ -814,9 +819,9 @@ async function fetchRepositoryRecentWorkflowRuns(repoFullName, perPage) {
   }
 }
 
-async function fetchPriorityRepositoryAutomationHealth(priorityRepositories, workflowRunLookback) {
+async function fetchPriorityRepositoryAutomationHealth(repositories, workflowRunLookback) {
   const entries = [];
-  for (const repository of priorityRepositories) {
+  for (const repository of repositories) {
     const workflowFiles = await fetchRepositoryWorkflowFiles(repository);
     const actionsCatalog = await fetchRepositoryActionsCatalog(repository);
     const recentWorkflowRuns = await fetchRepositoryRecentWorkflowRuns(repository, workflowRunLookback);
@@ -983,6 +988,146 @@ function summarizePriorityRepositories(
   });
 }
 
+function summarizeCoreRepositoryHealth(
+  coreRepository,
+  repositoryPullRequestMap,
+  repositoryAutomationHealthMap,
+  staleDraftHours
+) {
+  const repositoryOpenPullRequests = repositoryPullRequestMap.get(coreRepository) || [];
+  const draftPullRequests = repositoryOpenPullRequests.filter((pr) => pr.isDraft);
+  const staleDraftPullRequests = draftPullRequests.filter(
+    (pr) => pr.ageHours !== null && pr.ageHours >= staleDraftHours
+  );
+  const conflictingPullRequests = repositoryOpenPullRequests.filter((pr) => mergeConflictForPr(pr));
+  const reviewPendingPullRequests = repositoryOpenPullRequests.filter((pr) => reviewPendingForPr(pr));
+  const pullRequestsWithFailingChecks = repositoryOpenPullRequests.filter(
+    (pr) => (pr.combinedStatus?.failingContexts || []).length > 0
+  );
+  const pullRequestsWithPendingChecks = repositoryOpenPullRequests.filter(
+    (pr) => (pr.combinedStatus?.pendingContexts || []).length > 0
+  );
+  const automation = repositoryAutomationHealthMap.get(coreRepository) || {
+    workflowFiles: [],
+    actionsCatalog: {
+      state: 'unknown',
+      totalCount: 0,
+      workflows: [],
+      errorStatus: null,
+      errorMessage: null,
+    },
+    recentWorkflowRuns: {
+      totalCount: 0,
+      latestRun: null,
+      failingRuns: [],
+      recentRuns: [],
+      errorStatus: null,
+      errorMessage: null,
+    },
+  };
+  const workflowFiles = automation.workflowFiles || [];
+  const actionsCatalog = automation.actionsCatalog || {
+    state: 'unknown',
+    totalCount: 0,
+    workflows: [],
+    errorStatus: null,
+    errorMessage: null,
+  };
+  const recentWorkflowRuns = automation.recentWorkflowRuns || {
+    totalCount: 0,
+    latestRun: null,
+    failingRuns: [],
+    recentRuns: [],
+    errorStatus: null,
+    errorMessage: null,
+  };
+  const actionsWorkflowState = classifyLatestWorkflowRunState(workflowFiles, actionsCatalog, recentWorkflowRuns);
+  const blocked =
+    staleDraftPullRequests.length > 0 ||
+    conflictingPullRequests.length > 0 ||
+    reviewPendingPullRequests.length > 0 ||
+    pullRequestsWithFailingChecks.length > 0 ||
+    actionsWorkflowState !== 'latest-run-success';
+
+  return {
+    repository: coreRepository,
+    state: blocked ? 'blocked' : repositoryOpenPullRequests.length > 0 ? 'active' : 'clear',
+    repositoryOpenPullRequestCount: repositoryOpenPullRequests.length,
+    draftPullRequestCount: draftPullRequests.length,
+    staleDraftPullRequestCount: staleDraftPullRequests.length,
+    conflictingPullRequestCount: conflictingPullRequests.length,
+    reviewPendingPullRequestCount: reviewPendingPullRequests.length,
+    failingCheckPullRequestCount: pullRequestsWithFailingChecks.length,
+    pendingCheckPullRequestCount: pullRequestsWithPendingChecks.length,
+    actionsWorkflowState,
+    workflowFileCount: workflowFiles.length,
+    workflowFilePaths: workflowFiles.map((entry) => entry.path).sort(),
+    actionsWorkflowCatalogCount: actionsCatalog.totalCount || 0,
+    actionsWorkflowNames: (actionsCatalog.workflows || []).map((workflow) => workflow.name).sort(),
+    actionsWorkflowErrorStatus: actionsCatalog.errorStatus || null,
+    actionsWorkflowErrorMessage: actionsCatalog.errorMessage || null,
+    latestWorkflowRun: recentWorkflowRuns.latestRun || null,
+    recentWorkflowRunCount: recentWorkflowRuns.recentRuns.length,
+    failingRecentWorkflowRunCount: recentWorkflowRuns.failingRuns.length,
+    failingRecentWorkflowRunRefs: recentWorkflowRuns.failingRuns.map((run) => `run:${run.id}`).sort(),
+    recentWorkflowRunErrorStatus: recentWorkflowRuns.errorStatus || null,
+    recentWorkflowRunErrorMessage: recentWorkflowRuns.errorMessage || null,
+    repositoryOpenPullRequestRefs: repositoryOpenPullRequests.map((pr) => pr.ref).sort(),
+    staleDraftPullRequestRefs: staleDraftPullRequests.map((pr) => pr.ref).sort(),
+    conflictingPullRequestRefs: conflictingPullRequests.map((pr) => pr.ref).sort(),
+    reviewPendingPullRequestRefs: reviewPendingPullRequests.map((pr) => pr.ref).sort(),
+    failingCheckPullRequestRefs: pullRequestsWithFailingChecks.map((pr) => pr.ref).sort(),
+    pendingCheckPullRequestRefs: pullRequestsWithPendingChecks.map((pr) => pr.ref).sort(),
+    failingCheckContextsByPullRequest: pullRequestsWithFailingChecks.map((pr) => ({
+      ref: pr.ref,
+      contexts: (pr.combinedStatus?.failingContexts || []).map((status) => ({
+        context: status.context,
+        state: status.state,
+        description: status.description,
+        targetUrl: status.targetUrl,
+      })),
+    })),
+    pendingCheckContextsByPullRequest: pullRequestsWithPendingChecks.map((pr) => ({
+      ref: pr.ref,
+      contexts: (pr.combinedStatus?.pendingContexts || []).map((status) => ({
+        context: status.context,
+        state: status.state,
+        description: status.description,
+        targetUrl: status.targetUrl,
+      })),
+    })),
+  };
+}
+
+function buildCoreRepositoryAttention(coreRepositoryHealth) {
+  if (
+    coreRepositoryHealth.state === 'clear' &&
+    coreRepositoryHealth.actionsWorkflowState === 'latest-run-success'
+  ) {
+    return null;
+  }
+
+  return {
+    repository: coreRepositoryHealth.repository,
+    actionsWorkflowState: coreRepositoryHealth.actionsWorkflowState,
+    workflowFilePaths: coreRepositoryHealth.workflowFilePaths,
+    actionsWorkflowNames: coreRepositoryHealth.actionsWorkflowNames,
+    actionsWorkflowErrorStatus: coreRepositoryHealth.actionsWorkflowErrorStatus,
+    actionsWorkflowErrorMessage: coreRepositoryHealth.actionsWorkflowErrorMessage,
+    latestWorkflowRun: coreRepositoryHealth.latestWorkflowRun,
+    recentWorkflowRunErrorStatus: coreRepositoryHealth.recentWorkflowRunErrorStatus,
+    recentWorkflowRunErrorMessage: coreRepositoryHealth.recentWorkflowRunErrorMessage,
+    repositoryOpenPullRequestRefs: coreRepositoryHealth.repositoryOpenPullRequestRefs,
+    staleDraftPullRequestRefs: coreRepositoryHealth.staleDraftPullRequestRefs,
+    conflictingPullRequestRefs: coreRepositoryHealth.conflictingPullRequestRefs,
+    reviewPendingPullRequestRefs: coreRepositoryHealth.reviewPendingPullRequestRefs,
+    failingCheckPullRequestRefs: coreRepositoryHealth.failingCheckPullRequestRefs,
+    pendingCheckPullRequestRefs: coreRepositoryHealth.pendingCheckPullRequestRefs,
+    failingCheckContextsByPullRequest: coreRepositoryHealth.failingCheckContextsByPullRequest,
+    pendingCheckContextsByPullRequest: coreRepositoryHealth.pendingCheckContextsByPullRequest,
+  };
+}
+
 function buildPriorityPullRequestAttention(priorityRepositoryHealth) {
   return priorityRepositoryHealth
     .filter(
@@ -1052,10 +1197,15 @@ async function main() {
     env('CTO_PRIORITY_WORKFLOW_RUN_LOOKBACK', DEFAULT_PRIORITY_WORKFLOW_RUN_LOOKBACK),
     10
   );
+  const coreRepository = normalizeRepositoryName(
+    org,
+    env('CTO_CORE_REPOSITORY', DEFAULT_CORE_REPOSITORY) || DEFAULT_CORE_REPOSITORY
+  );
   const priorityRepositories = normalizePriorityRepositories(
     org,
     parseCsv(env('CTO_PRIORITY_REPOSITORIES', DEFAULT_PRIORITY_REPOSITORIES))
   );
+  const repositoryAuditTargets = [...new Set([...priorityRepositories, coreRepository])];
   const priorityRepositorySet = new Set(priorityRepositories);
   const knownAgentLogins = new Set(
     parseCsv(env('CTO_KNOWN_AGENT_LOGINS', DEFAULT_KNOWN_AGENT_LOGINS)).map((login) => login.toLowerCase())
@@ -1131,22 +1281,29 @@ async function main() {
     }
   }
 
-  const priorityRepositoryPullRequests = await fetchPriorityRepositoryPullRequests(priorityRepositories);
-  const priorityRepositoryAutomationHealth = await fetchPriorityRepositoryAutomationHealth(
-    priorityRepositories,
+  const repositoryPullRequests = await fetchPriorityRepositoryPullRequests(repositoryAuditTargets);
+  const repositoryAutomationHealth = await fetchPriorityRepositoryAutomationHealth(
+    repositoryAuditTargets,
     workflowRunLookback
   );
   const unsupportedCopilotByRepository = summarizeUnsupportedCopilot(unsupportedCopilotIssues);
   const priorityRepositoryHealth = summarizePriorityRepositories(
     priorityRepositories,
     priorityOperationalIssues,
-    priorityRepositoryPullRequests,
-    priorityRepositoryAutomationHealth,
+    repositoryPullRequests,
+    repositoryAutomationHealth,
     staleHours,
     staleDraftHours,
     staleOpenPrHours
   );
   const priorityPullRequestAttention = buildPriorityPullRequestAttention(priorityRepositoryHealth);
+  const coreRepositoryHealth = summarizeCoreRepositoryHealth(
+    coreRepository,
+    repositoryPullRequests,
+    repositoryAutomationHealth,
+    staleDraftHours
+  );
+  const coreRepositoryAttention = buildCoreRepositoryAttention(coreRepositoryHealth);
 
   const result = {
     generatedAt: new Date().toISOString(),
@@ -1160,6 +1317,7 @@ async function main() {
     workStatus,
     inReviewStatus,
     doneStatus,
+    coreRepository,
     staleDraftHours,
     staleOpenPrHours,
     workflowRunLookback,
@@ -1169,13 +1327,36 @@ async function main() {
     priorityRepositories,
     priorityOperationalIssueCount: priorityOperationalIssues.length,
     priorityOperationalIssues,
+    coreRepositoryOpenPullRequests: repositoryPullRequests.get(coreRepository) || [],
+    coreRepositoryAutomationHealth:
+      repositoryAutomationHealth.get(coreRepository) || {
+        workflowFiles: [],
+        actionsCatalog: {
+          state: 'unknown',
+          totalCount: 0,
+          workflows: [],
+          errorStatus: null,
+          errorMessage: null,
+        },
+        recentWorkflowRuns: {
+          totalCount: 0,
+          latestRun: null,
+          failingRuns: [],
+          recentRuns: [],
+          errorStatus: null,
+          errorMessage: null,
+        },
+      },
+    coreRepositoryHealth,
+    coreRepositoryAttentionCount: coreRepositoryAttention ? 1 : 0,
+    coreRepositoryAttention,
     priorityRepositoryOpenPullRequests: Object.fromEntries(
-      priorityRepositories.map((repository) => [repository, priorityRepositoryPullRequests.get(repository) || []])
+      priorityRepositories.map((repository) => [repository, repositoryPullRequests.get(repository) || []])
     ),
     priorityRepositoryAutomationHealth: Object.fromEntries(
       priorityRepositories.map((repository) => [
         repository,
-        priorityRepositoryAutomationHealth.get(repository) || {
+        repositoryAutomationHealth.get(repository) || {
           workflowFiles: [],
           actionsCatalog: {
             state: 'unknown',
@@ -1223,6 +1404,8 @@ async function main() {
         dryRun,
         unsupportedCopilotIssueCount: unsupportedCopilotIssues.length,
         priorityOperationalIssueCount: priorityOperationalIssues.length,
+        coreRepositoryState: coreRepositoryHealth.state,
+        coreRepositoryActionsWorkflowState: coreRepositoryHealth.actionsWorkflowState,
         blockedPriorityRepositoryCount: result.blockedPriorityRepositoryCount,
         staleBlockedPriorityRepositoryCount: result.staleBlockedPriorityRepositoryCount,
         actionsBlockedPriorityRepositoryCount: result.actionsBlockedPriorityRepositoryCount,

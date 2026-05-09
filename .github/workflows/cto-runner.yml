@@ -1,62 +1,12 @@
-name: CTO Project Supervisor
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+name: "[Disabled] CTO Project Supervisor"
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/**'
-      - '.github/agents/**'
-      - 'AGENTS.md'
-      - 'automate/**'
-      - 'src/**'
-      - 'package.json'
-      - 'package-lock.json'
-  schedule:
-    - cron: '*/20 * * * *'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   cto-runner:
+    if: ${{ false }}
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-      - run: node src/run-with-retry.js npm install
-      - run: node src/cto-runner.js
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          APP_ID: ${{ secrets.APP_ID }}
-          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-          GITHUB_RETRY_ATTEMPTS: 3
-          GITHUB_RETRY_DELAY_MS: 2000
-          GITHUB_RETRY_MAX_DELAY_MS: 15000
-          CTO_PROJECT_ORG: ControleOnline
-          CTO_PROJECT_NUMBER: 1
-          CTO_DRY_RUN: false
-          CTO_WORK_STATUS: Work
-          CTO_IN_REVIEW_STATUS: In Review
-          CTO_DONE_STATUS: Done
-          CTO_CORE_REPOSITORY: ControleOnline/cto-mcp
-          CTO_PRIORITY_REPOSITORIES: ControleOnline/app-community,ControleOnline/api-community,ControleOnline/api-whatsapp
-          CTO_PRIORITY_WORKFLOW_RUN_LOOKBACK: 10
-          CTO_KNOWN_AGENT_LOGINS: github-copilot[bot],copilot-swe-agent,copilot
-          CTO_UNSUPPORTED_LABEL: ops:copilot-unavailable
-          CTO_OUTPUT_DIR: ./.cto-output
-
-      - name: Upload CTO supervisor snapshot artifact
-        uses: actions/upload-artifact@v5
-        with:
-          name: cto-project-supervisor
-          path: ./.cto-output/cto-project-supervisor.json
+      - run: echo "Disabled. CTO supervision now belongs to peer agents in ChatGPT."

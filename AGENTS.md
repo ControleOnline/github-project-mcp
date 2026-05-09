@@ -29,6 +29,7 @@ Labels validos:
 - `agent:security`
 - `agent:qa`
 - `agent:devops`
+- `agent:sysadmin`
 
 Regras obrigatorias:
 
@@ -37,9 +38,10 @@ Regras obrigatorias:
 - o assignee `Copilot` indica apenas execucao ativa
 - o agent atual troca o label ao concluir a propria etapa
 - `DevOps` e o unico que move a task para `In Review`
+- `Sysadmin` pode manter ou criar acompanhamento operacional em `Work` e abrir etapa de validacao em `In Review` quando houver necessidade operacional posterior
 
 ## Fronteira do CTO
 
 O CTO supervisiona o ecossistema e corrige diretamente o `cto-mcp` quando houver falha estrutural de instrucao, runner, workflow, ownership ou automacao.
 
-O CTO nao deve substituir a execucao normal de `Developer`, `Security`, `Quality Assurance` ou `DevOps` quando a trilha ja pertence claramente a um desses agents.
+O CTO nao deve substituir a execucao normal de `Developer`, `Security`, `Quality Assurance`, `DevOps` ou `Sysadmin` quando a trilha ja pertence claramente a um desses agents.

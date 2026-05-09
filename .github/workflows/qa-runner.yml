@@ -1,61 +1,12 @@
-name: QA Project Runner
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+name: "[Disabled] QA Project Runner"
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/**'
-      - '.github/agents/**'
-      - 'AGENTS.md'
-      - 'automate/**'
-      - 'src/**'
-      - 'package.json'
-      - 'package-lock.json'
-  schedule:
-    - cron: '*/15 * * * *'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   qa-runner:
+    if: ${{ false }}
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-      - run: node src/run-with-retry.js npm install
-      - run: node src/qa-runner.js
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          APP_ID: ${{ secrets.APP_ID }}
-          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-          GITHUB_RETRY_ATTEMPTS: 3
-          GITHUB_RETRY_DELAY_MS: 2000
-          GITHUB_RETRY_MAX_DELAY_MS: 15000
-          AGENT_DISPATCH_ROLE: qa
-          AGENT_PROJECT_ORG: ControleOnline
-          AGENT_PROJECT_NUMBER: 1
-          AGENT_DRY_RUN: false
-          AGENT_WORK_STATUS: Work
-          AGENT_LOGIN: github-copilot[bot]
-          AGENT_KNOWN_LOGINS: github-copilot[bot],copilot-swe-agent,copilot
-          AGENT_ASSIGNEE_OVERRIDE: ${{ secrets.AGENT_ASSIGNEE_OVERRIDE }}
-          AGENT_COPILOT_BASE_REF: master
-          AGENT_COPILOT_MODEL: ''
-          AGENT_OUTPUT_DIR: ./.qa-output
-
-      - name: Upload QA snapshot artifact
-        uses: actions/upload-artifact@v5
-        with:
-          name: qa-project-dispatch
-          path: ./.qa-output/agent-project-dispatch-qa.json
+      - run: echo "Disabled. QA execution now belongs to peer agents in ChatGPT."

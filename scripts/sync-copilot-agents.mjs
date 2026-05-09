@@ -5,35 +5,36 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const ctoRoot = path.resolve(__dirname, "..");
-const workspaceRoot = path.dirname(ctoRoot);
+const platformRoot = path.resolve(__dirname, "..");
+const workspaceRoot = path.dirname(platformRoot);
 
 const CONTROL_OWNER = "ControleOnline";
-const CTO_REPO = "cto-mcp";
-const CTO_BASE_URL = `https://github.com/${CONTROL_OWNER}/${CTO_REPO}/blob/master`;
+const CENTRAL_REPO = "agents-mcp";
+const CENTRAL_BASE_URL = `https://github.com/${CONTROL_OWNER}/${CENTRAL_REPO}/blob/master`;
+const centralWorkspaceName = path.basename(platformRoot);
 const types = ["developer", "qa", "security", "devops"];
 
 const typeMeta = {
   developer: {
     displayName: "Developer",
-    descriptionPrefix: "Executor autônomo de issues",
+    descriptionPrefix: "Executor autonomo de issues",
   },
   qa: {
     displayName: "Quality Assurance",
-    descriptionPrefix: "Revisor técnico de entregas",
+    descriptionPrefix: "Revisor tecnico de entregas",
   },
   security: {
     displayName: "Security",
-    descriptionPrefix: "Revisor de segurança",
+    descriptionPrefix: "Revisor de seguranca",
   },
   devops: {
     displayName: "DevOps",
-    descriptionPrefix: "Operador de fluxo e automações",
+    descriptionPrefix: "Operador de fluxo e automacoes",
   },
 };
 
 const roots = [
-  { key: "cto-mcp", relPath: "cto-mcp", family: "automation" },
+  { key: CENTRAL_REPO, relPath: centralWorkspaceName, family: "automation" },
   { key: "api-community", relPath: "api-community", family: "backend" },
   { key: "api-whatsapp", relPath: "api-whatsapp", family: "integration" },
   { key: "app-community", relPath: "app-community", family: "frontend" },
@@ -41,10 +42,6 @@ const roots = [
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
-}
-
-function readFileIfExists(filePath) {
-  return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
 }
 
 function writeFile(filePath, content) {
@@ -112,7 +109,7 @@ function detectDefaultBranch() {
 }
 
 function detectFamily(rootKey, repoName) {
-  if (rootKey === "cto-mcp") {
+  if (rootKey === CENTRAL_REPO) {
     return "automation";
   }
   if (rootKey === "app-community" || repoName.startsWith("ui-")) {
@@ -130,7 +127,7 @@ function detectFamily(rootKey, repoName) {
 }
 
 function repoKindLabel(entry) {
-  return entry.kind === "root" ? "projeto raiz" : `submódulo de ${entry.rootKey}`;
+  return entry.kind === "root" ? "projeto raiz" : `submodulo de ${entry.rootKey}`;
 }
 
 function familyLabel(family) {
@@ -140,53 +137,52 @@ function familyLabel(family) {
     case "backend":
       return "backend";
     case "integration":
-      return "integração";
+      return "integracao";
     case "automation":
-      return "automação";
+      return "automacao";
     default:
       return family;
   }
 }
 
-function relativeToWorkspace(targetPath) {
-  return path.relative(workspaceRoot, targetPath).replace(/\\/g, "/");
-}
-
 function renderWrapper(type, entry) {
   const meta = typeMeta[type];
-  const centralAgentUrl = `${CTO_BASE_URL}/agents/agent/${type}/agent.md`;
+  const canonicalAgentUrl = `${CENTRAL_BASE_URL}/agents/agent/${type}/agent.md`;
+  const skillsUrl = `${CENTRAL_BASE_URL}/skills/README.md`;
+  const sharedSkillsUrl = `${CENTRAL_BASE_URL}/skills/shared/README.md`;
+  const roleSkillsUrl = `${CENTRAL_BASE_URL}/skills/agents/${type}/README.md`;
+  const wrapperContractUrl = `${CENTRAL_BASE_URL}/skills/shared/agent-wrapper-contract.md`;
   const agentsStatus = entry.hasAgentsMd ? "presente" : "ausente";
 
   return `---
 name: ${meta.displayName}
-description: ${meta.descriptionPrefix} do repositório ${CONTROL_OWNER}/${entry.repoName}, com fonte canônica centralizada no cto-mcp.
+description: ${meta.descriptionPrefix} do repositorio ${CONTROL_OWNER}/${entry.repoName}, com fonte canonica centralizada no ${CENTRAL_REPO}.
 target: github-copilot
 ---
 
-## Fonte canônica
+## Fonte canonica
 
-Este wrapper é intencionalmente fino. Antes de agir, leia e siga, nesta ordem:
+Este wrapper deve permanecer fino. Antes de agir, leia e siga nesta ordem:
 
-1. \`${centralAgentUrl}\`
-
-Esse arquivo central referencia as regras-base de \`automation/\` no \`cto-mcp\`. Se este wrapper local divergir do conteúdo canônico do \`cto-mcp\`, prefira o \`cto-mcp\`, salvo quando o estado real deste repositório exigir adaptação operacional explícita.
+1. \`${canonicalAgentUrl}\`
+2. \`${skillsUrl}\`
+3. \`${sharedSkillsUrl}\`
+4. \`${roleSkillsUrl}\`
+5. \`${wrapperContractUrl}\`
 
 ## Contexto local
 
-Você está operando no repositório \`${CONTROL_OWNER}/${entry.repoName}\`.
-
-Você conhece o ecossistema completo da ControleOnline. Este checkout define o ponto principal de escrita e validação para esta execução, não o limite do seu entendimento sobre o sistema.
-
-- Checkout local: \`${entry.workspacePath}\`
-- Tipo: ${repoKindLabel(entry)}
-- Família: ${familyLabel(entry.family)}
-- Branch base operacional: \`${entry.baseBranch}\`
-- Alvo preferencial de PR: \`${entry.reviewTarget}\`
+- repositorio: \`${CONTROL_OWNER}/${entry.repoName}\`
+- checkout local: \`${entry.workspacePath}\`
+- tipo: ${repoKindLabel(entry)}
+- familia: ${familyLabel(entry.family)}
+- branch base operacional: \`${entry.baseBranch}\`
+- alvo preferencial de PR: \`${entry.reviewTarget}\`
 - \`AGENTS.md\` local: ${agentsStatus}
 
-Leia o \`AGENTS.md\` mais próximo antes de editar código. Se esta alteração tocar apenas o repositório atual, trabalhe aqui; se também exigir atualização do superprojeto que consome este repositório, registre ou entregue a composição necessária sem perder a separação de ownership.
+Leia o \`AGENTS.md\` mais proximo antes de editar codigo. Se a alteracao tocar apenas o repositorio atual, trabalhe aqui. Se tambem exigir atualizacao do projeto agregador ou de outro modulo dono da mudanca, preserve a separacao de ownership.
 
-_Arquivo gerado por \`cto-mcp/scripts/sync-copilot-agents.mjs\`._
+_Arquivo gerado por \`${CENTRAL_REPO}/scripts/sync-copilot-agents.mjs\`._
 `;
 }
 
@@ -208,9 +204,8 @@ function collectEntries() {
     const reviewTarget = detectReviewTarget();
     const hasAgentsMd = existsLocally && fs.existsSync(path.join(localPath, "AGENTS.md"));
     const workspacePath = raw.localRelPath.replace(/\\/g, "/");
-    const dedupeKey = workspacePath;
 
-    if (byLocalPath.has(dedupeKey)) {
+    if (byLocalPath.has(workspacePath)) {
       return;
     }
 
@@ -229,7 +224,7 @@ function collectEntries() {
       hasAgentsMd,
     };
 
-    byLocalPath.set(dedupeKey, entry);
+    byLocalPath.set(workspacePath, entry);
     entries.push(entry);
   }
 

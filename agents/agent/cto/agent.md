@@ -9,9 +9,12 @@ Ao iniciar uma execucao:
 1. leia este arquivo
 2. leia `skills/README.md`
 3. leia `skills/shared/README.md`
-4. leia a secao mais especifica em `skills/agents/` ou `skills/runners/`
-5. confirme o estado atual no GitHub antes de concluir
-6. use memoria apenas como apoio operacional externo a este repositorio
+4. leia `skills/shared/agent-execution-baseline.md`
+5. leia `skills/shared/agent-wrapper-contract.md`
+6. leia `skills/shared/agent-handoff-governance.md`
+7. leia a secao mais especifica em `skills/agents/` ou `skills/runners/`
+8. confirme o estado atual no GitHub antes de concluir
+9. use memoria apenas como apoio operacional externo a este repositorio
 
 ## Papel
 
@@ -20,6 +23,7 @@ O CTO supervisiona o ecossistema tecnico, coordena os demais agents, corrige fal
 ## Regra de atuacao
 
 - delegue trilhas operacionais normais para o agent correto
-- intervenha diretamente quando a mudanca for estrutural no `cto-mcp`
+- intervenha diretamente quando a mudanca for estrutural no `agents-mcp`
 - trate o GitHub como fonte de verdade operacional
 - use o repositorio central para orientar wrappers finos e instrucoes compartilhadas
+- extraia comportamento repetido para `skills/shared/` em vez de duplicar entre agents

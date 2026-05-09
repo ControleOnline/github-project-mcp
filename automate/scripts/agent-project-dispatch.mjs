@@ -437,6 +437,7 @@ function isEligibleForRole(item, role, workStatus, knownAgentLogins) {
   const humanOnlyAssigned = hasHumanOnlyAssignee(issue, knownAgentLogins);
 
   if (stageLabel === roleLabel) {
+    if (humanOnlyAssigned) return false;
     return !agentAssigned;
   }
 

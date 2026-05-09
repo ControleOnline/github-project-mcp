@@ -384,10 +384,18 @@ function recentComments(issue) {
   return issue.comments?.nodes || [];
 }
 
-function hasBootstrapComment(issue, role) {
+function commentMarker(type, role) {
+  return `<!-- cto-mcp-agent-dispatch:${type}:${role} -->`;
+}
+
+function hasCommentMarker(issue, type, role) {
   return recentComments(issue).some((comment) =>
-    (comment?.body || '').includes(`<!-- cto-mcp-agent-dispatch:bootstrap:${role} -->`)
+    (comment?.body || '').includes(commentMarker(type, role))
   );
+}
+
+function hasBootstrapComment(issue, role) {
+  return hasCommentMarker(issue, 'bootstrap', role);
 }
 
 function sortByCreatedAt(items) {
@@ -511,7 +519,7 @@ function buildBootstrapComment(role, issueRef, actorLogin) {
     `Origem: issue já estava com o assignee técnico \`${actorLogin}\`, mas ainda precisava receber o contexto personalizado do agent \`${meta.displayName}\`.`,
     'Ação: o runner reaplicou a atribuição com instruções explícitas do agent para a execução continuar no fluxo correto.',
     '',
-    `<!-- cto-mcp-agent-dispatch:bootstrap:${role} -->`,
+    commentMarker('bootstrap', role),
   ].join('\n');
 }
 
@@ -525,6 +533,8 @@ function buildRecoveryComment(role, issueRef, staleAfterMinutes, updatedAt) {
     `Origem: execução ativa em \`${meta.label}\` sem avanço recente.`,
     `Critério: issue ainda aberta, com assignee de agent, parada há ${ageMinutes ?? 'tempo indeterminado'} minutos; limite configurado: ${staleAfterMinutes} minutos.`,
     `Ação: o runner reatribuiu o agent \`${meta.displayName}\` para retomar a execução sem bloquear a continuação da fila.`,
+    '',
+    commentMarker('recovery', role),
   ].join('\n');
 }
 
@@ -537,6 +547,8 @@ function buildUnavailableComment(role, issueRef, unsupportedLabel) {
     `Bloqueio: o repositório alvo não aceita atribuição do Copilot cloud agent para o papel \`${meta.displayName}\`.`,
     `Ação: a automação marcou a issue com \`${unsupportedLabel}\`, retirou o label \`${meta.label}\` e tentou remover o assignee técnico do Copilot, preservando assignees humanos quando a API do repositório permitiu.`,
     'Próximo passo: habilitar o Copilot agent neste repositório e depois devolver a task para `Work` ou reaplicar o label do agent correto.',
+    '',
+    commentMarker('unavailable', role),
   ].join('\n');
 }
 
@@ -549,6 +561,8 @@ function buildOverrideComment(role, issueRef, overrideLogin) {
     `Modo: atribuição manual via \`AGENT_ASSIGNEE_OVERRIDE\` (Copilot cloud agent não disponível no repositório alvo).`,
     `Ação: o runner atribuiu \`${overrideLogin}\` como responsável pelo papel \`${meta.displayName}\`.`,
     meta.nextInstruction,
+    '',
+    commentMarker('override', role),
   ].join('\n');
 }
 
@@ -845,7 +859,9 @@ async function main() {
         await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
         if (isOverride) {
           await replaceAssignableActors(issue.id, nextActorIds);
-          await addIssueComment(issue.id, buildOverrideComment(role, issueRef, actor.login));
+          if (!hasCommentMarker(issue, 'override', role)) {
+            await addIssueComment(issue.id, buildOverrideComment(role, issueRef, actor.login));
+          }
         } else {
           await assignIssueToAgent(
             issue.id,
@@ -855,14 +871,19 @@ async function main() {
             buildAgentInstructions(role, issueRef, issue.number, mode),
             model
           );
-          await addIssueComment(
-            issue.id,
-            mode === 'bootstrap'
-              ? buildBootstrapComment(role, issueRef, actor.login || preferredAgentLogin)
-              : mode === 'recovery'
-              ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
-              : buildAssignmentComment(role, issueRef)
-          );
+          const shouldComment =
+            mode === 'dispatch' ||
+            !hasCommentMarker(issue, mode === 'bootstrap' ? 'bootstrap' : 'recovery', role);
+          if (shouldComment) {
+            await addIssueComment(
+              issue.id,
+              mode === 'bootstrap'
+                ? buildBootstrapComment(role, issueRef, actor.login || preferredAgentLogin)
+                : mode === 'recovery'
+                ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
+                : buildAssignmentComment(role, issueRef)
+            );
+          }
         }
         result.executed = true;
       } else {
@@ -903,7 +924,9 @@ async function main() {
         if (cleanupWarnings.length > 0) {
           result.assignmentCleanupWarning = cleanupWarnings.join(' | ');
         }
-        await addIssueComment(issue.id, buildUnavailableComment(role, issueRef, unsupportedLabel));
+        if (!hasCommentMarker(issue, 'unavailable', role)) {
+          await addIssueComment(issue.id, buildUnavailableComment(role, issueRef, unsupportedLabel));
+        }
         result.assignmentAttempts.push({
           issue: targetRecord.issue,
           status: 'blocked',

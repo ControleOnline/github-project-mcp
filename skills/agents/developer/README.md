@@ -4,6 +4,11 @@
 
 `Developer` e a porta de entrada padrao de task nova em `Work` e o executor da mudanca.
 
+## Skills compartilhadas essenciais
+
+- `skills/shared/agent-execution-baseline.md`
+- `skills/shared/agent-handoff-governance.md`
+
 ## Ownership
 
 - label oficial: `agent:developer`

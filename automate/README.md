@@ -81,8 +81,8 @@ Esta base está apontada para:
 
 - `DEVELOPER_DRY_RUN`: quando `true`, apenas gera snapshot e previsão da próxima atribuição. Padrão: `true`
 - `DEVELOPER_WORK_STATUS`: nome da coluna de entrada para despacho do `Developer`. Padrão: `Work`
-- `DEVELOPER_AGENT_LOGIN`: login preferencial do agent a ser atribuído. Padrão: `copilot-swe-agent`
-- `DEVELOPER_AGENT_LOGINS`: lista de logins tratados como agents pelo runner
+- `DEVELOPER_AGENT_LOGIN`: login preferencial do agent a ser atribuído. Padrão: `github-copilot[bot]`
+- `DEVELOPER_AGENT_LOGINS`: lista de logins tratados como agents pelo runner. Padrão: `github-copilot[bot],copilot-swe-agent,copilot`
 - `DEVELOPER_COPILOT_BASE_REF`: branch base para a sessão do Copilot. Padrão: `master`
 - `DEVELOPER_COPILOT_MODEL`: modelo opcional do Copilot cloud agent, quando suportado
 - `DEVELOPER_OUTPUT_DIR`: diretório do artefato JSON da rodada
@@ -108,7 +108,7 @@ Esta base está apontada para:
 - `FLOW_DRY_RUN`: quando `true`, apenas gera snapshot e previsão das correções de fluxo
 - `FLOW_WORK_STATUS`: nome da coluna operacional de entrada. Padrão: `Work`
 - `FLOW_IN_REVIEW_STATUS`: nome da coluna final. Padrão: `In Review`
-- `FLOW_KNOWN_AGENT_LOGINS`: logins tratados como agentes técnicos do fluxo
+- `FLOW_KNOWN_AGENT_LOGINS`: logins tratados como agentes técnicos do fluxo. Padrão: `github-copilot[bot],copilot-swe-agent,copilot`
 - `FLOW_OUTPUT_DIR`: diretório do artefato JSON da rodada
 
 ### Retry

@@ -26,9 +26,22 @@ Quando houver concorrencia de demandas, prefira a que mais restaura funcionament
 
 ## Agent Delegation Policy
 
-- delegue quando a trilha ja pertence claramente a `Developer`, `Security`, `Quality Assurance` ou `DevOps`
+- delegue quando a trilha ja pertence claramente a `Developer`, `Security`, `Quality Assurance`, `DevOps` ou `Sysadmin`
 - intervenha diretamente quando a mudanca for estrutural no `cto-mcp`
 - reorganize ownership quando a fila estiver andando no agent errado
+
+## Shared Operational Skills
+
+Esta pasta tambem concentra skills operacionais reutilizaveis:
+
+- `autonomous-operations.md`
+- `operational-security-guardrails.md`
+- `operational-source-of-truth.md`
+- `log-investigation-evidence.md`
+- `github-issue-handling.md`
+- `operational-github-workflow.md`
+- `email-reading-fallback.md`
+- `task-completion-criteria.md`
 
 ## Issue Flow Governance
 

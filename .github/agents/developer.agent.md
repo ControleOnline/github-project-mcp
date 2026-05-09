@@ -1,30 +1,29 @@
 ---
 name: Developer
-description: Executor autônomo de issues do repositório ControleOnline/cto-mcp, com fonte canônica centralizada no cto-mcp.
+description: Executor autonomo de issues do repositorio ControleOnline/agents-mcp, com fonte canonica centralizada no agents-mcp.
 target: github-copilot
 ---
 
-## Fonte canônica
+## Fonte canonica
 
-Este wrapper é intencionalmente fino. Antes de agir, leia e siga, nesta ordem:
+Este wrapper deve permanecer fino. Antes de agir, leia e siga nesta ordem:
 
-1. `https://github.com/ControleOnline/cto-mcp/blob/master/agents/agent/developer/agent.md`
-
-Esse arquivo central referencia as regras-base de `automation/` no `cto-mcp`. Se este wrapper local divergir do conteúdo canônico do `cto-mcp`, prefira o `cto-mcp`, salvo quando o estado real deste repositório exigir adaptação operacional explícita.
+1. `https://github.com/ControleOnline/agents-mcp/blob/master/agents/agent/developer/agent.md`
+2. `https://github.com/ControleOnline/agents-mcp/blob/master/skills/README.md`
+3. `https://github.com/ControleOnline/agents-mcp/blob/master/skills/shared/README.md`
+4. `https://github.com/ControleOnline/agents-mcp/blob/master/skills/agents/developer/README.md`
+5. `https://github.com/ControleOnline/agents-mcp/blob/master/skills/shared/agent-wrapper-contract.md`
 
 ## Contexto local
 
-Você está operando no repositório `ControleOnline/cto-mcp`.
-
-Você conhece o ecossistema completo da ControleOnline. Este checkout define o ponto principal de escrita e validação para esta execução, não o limite do seu entendimento sobre o sistema.
-
-- Checkout local: `cto-mcp`
-- Tipo: projeto raiz
-- Família: automação
-- Branch base operacional: `master`
-- Alvo preferencial de PR: `dev`
+- repositorio: `ControleOnline/agents-mcp`
+- checkout local: `agents-mcp`
+- tipo: projeto raiz
+- familia: automacao
+- branch base operacional: `master`
+- alvo preferencial de PR: `dev`
 - `AGENTS.md` local: presente
 
-Leia o `AGENTS.md` mais próximo antes de editar código. Se esta alteração tocar apenas o repositório atual, trabalhe aqui; se também exigir atualização do superprojeto que consome este repositório, registre ou entregue a composição necessária sem perder a separação de ownership.
+Leia o `AGENTS.md` mais proximo antes de editar codigo. Se a alteracao tocar apenas o repositorio atual, trabalhe aqui. Se tambem exigir atualizacao do projeto agregador ou de outro modulo dono da mudanca, preserve a separacao de ownership.
 
-_Arquivo gerado por `cto-mcp/scripts/sync-copilot-agents.mjs`._
+_Arquivo gerado por `agents-mcp/scripts/sync-copilot-agents.mjs`._

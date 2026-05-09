@@ -3,140 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
-const GRAPHQL_API_URL = 'https://api.github.com/graphql';
-const REST_API_URL = 'https://api.github.com';
-const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
-const DEFAULT_KNOWN_AGENT_LOGINS = 'github-copilot[bot],copilot-swe-agent,copilot';
-const ROLE_META = {
-  developer: { displayName: 'Developer', label: 'agent:developer' },
-  security: { displayName: 'Security', label: 'agent:security' },
-  qa: { displayName: 'Quality Assurance', label: 'agent:qa' },
-  devops: { displayName: 'DevOps', label: 'agent:devops' },
-};
-const ALL_AGENT_LABELS = Object.values(ROLE_META).map((entry) => entry.label);
-const LABEL_META = {
-  'ops:copilot-unavailable': {
-    color: 'd4a72c',
-    description: 'Copilot cloud agent nao habilitado no repositorio alvo',
-  },
-};
-
 function env(name, fallback = '') {
   return (process.env[name] || fallback).trim();
-}
-
-function getToken() {
-  return env('GITHUB_TOKEN') || env('GH_TOKEN');
-}
-
-function parseCsv(value) {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function headers(extra = {}) {
-  return {
-    Accept: 'application/vnd.github+json',
-    Authorization: `Bearer ${getToken()}`,
-    'X-GitHub-Api-Version': '2022-11-28',
-    'Content-Type': 'application/json',
-    'User-Agent': 'controleonline-agent-runner',
-    ...extra,
-  };
-}
-
-async function githubRest(pathname, options = {}) {
-  const response = await fetch(`${REST_API_URL}${pathname}`, {
-    ...options,
-    headers: headers(options.headers || {}),
-  });
-  const text = await response.text();
-  const body = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(JSON.stringify({ status: response.status, path: pathname, body }, null, 2));
-  }
-  return body;
-}
-
-async function githubGraphQL(query, variables = {}) {
-  const response = await fetch(GRAPHQL_API_URL, {
-    method: 'POST',
-    headers: headers({
-      'GraphQL-Features': 'issues_copilot_assignment_api_support,coding_agent_model_selection',
-    }),
-    body: JSON.stringify({ query, variables }),
-  });
-  const json = await response.json();
-  if (!response.ok || json.errors) {
-    throw new Error(JSON.stringify({ status: response.status, errors: json.errors || json }, null, 2));
-  }
-  return json.data;
-}
-
-async function ensureLabelExists(repoFullName, labelName) {
-  const [owner, repo] = repoFullName.split('/');
-  const meta = LABEL_META[labelName] || { color: '1f6feb', description: labelName };
-  try {
-    await githubRest(`/repos/${owner}/${repo}/labels`, {
-      method: 'POST',
-      body: JSON.stringify({
-        name: labelName,
-        color: meta.color,
-        description: meta.description,
-      }),
-    });
-  } catch (error) {
-    const payload = JSON.parse(error.message || '{}');
-    if (payload.status !== 422) throw error;
-  }
-}
-
-async function replaceIssueLabels(repoFullName, issueNumber, nextLabels) {
-  const [owner, repo] = repoFullName.split('/');
-  await githubRest(`/repos/${owner}/${repo}/issues/${issueNumber}/labels`, {
-    method: 'PUT',
-    body: JSON.stringify(nextLabels),
-  });
-}
-
-async function removeIssueAssignees(repoFullName, issueNumber, assignees) {
-  if (!assignees.length) return;
-  const [owner, repo] = repoFullName.split('/');
-  await githubRest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
-    method: 'DELETE',
-    body: JSON.stringify({ assignees }),
-  });
-}
-
-async function replaceAssignableActors(issueId, actorIds) {
-  await githubGraphQL(
-    `mutation($issueId:ID!, $actorIds:[ID!]!) {
-      replaceActorsForAssignable(input: {
-        assignableId: $issueId,
-        actorIds: $actorIds
-      }) {
-        assignable {
-          ... on Issue {
-            id
-          }
-        }
-      }
-    }`,
-    { issueId, actorIds }
-  );
-}
-
-async function addIssueComment(issueId, body) {
-  await githubGraphQL(
-    `mutation($subjectId:ID!, $body:String!) {
-      addComment(input:{subjectId:$subjectId, body:$body}) {
-        commentEdge { node { id } }
-      }
-    }`,
-    { subjectId: issueId, body }
-  );
 }
 
 function outputPathForRole(role) {
@@ -166,110 +34,6 @@ function runDispatchScript(role) {
   });
 }
 
-function buildUnavailableComment(role, issueRef, unsupportedLabel, preferredAgentLogin) {
-  const meta = ROLE_META[role] || { displayName: role, label: `agent:${role}` };
-  return [
-    `### ${meta.displayName} iniciado - bloqueio operacional`,
-    '',
-    `Issue: ${issueRef}`,
-    `Bloqueio: o repositório alvo não expôs o actor \`${preferredAgentLogin}\` em \`suggestedActors\` e também não havia assignee atual de agent reaproveitável para o papel \`${meta.displayName}\`.`,
-    `Ação: a automação marcou a issue com \`${unsupportedLabel}\`, retirou o label \`${meta.label}\` e tentou remover o assignee técnico do Copilot, preservando assignees humanos quando a API do repositório permitiu.`,
-    'Próximo passo: habilitar o Copilot agent no repositório alvo e depois devolver a task para `Work` ou reaplicar o label do agent correto.',
-  ].join('\n');
-}
-
-function shouldSurfaceMissingActor(attempt) {
-  return (
-    attempt?.status === 'skipped' &&
-    typeof attempt?.reason === 'string' &&
-    attempt.reason.includes('não apareceu em suggestedActors')
-  );
-}
-
-function retainedHumanActorIdsFromSerialized(detail, knownAgentLogins) {
-  return (detail?.assigneeActors || [])
-    .filter((assignee) => {
-      const login = (assignee?.login || '').trim().toLowerCase();
-      return login && !knownAgentLogins.has(login) && assignee?.id;
-    })
-    .map((assignee) => assignee.id);
-}
-
-function technicalAgentLoginsFromSerialized(detail, knownAgentLogins) {
-  return [...new Set(
-    (detail?.assigneeActors || [])
-      .map((assignee) => (assignee?.login || '').trim().toLowerCase())
-      .filter((login) => login && knownAgentLogins.has(login))
-  )];
-}
-
-async function surfaceMissingActorBlocks(payload) {
-  if (payload?.dryRun) return [];
-
-  const unsupportedLabel = payload.unsupportedLabel || DEFAULT_UNSUPPORTED_LABEL;
-  const preferredAgentLogin = env('AGENT_LOGIN', 'github-copilot[bot]').toLowerCase();
-  const knownAgentLogins = new Set(
-    parseCsv(env('AGENT_KNOWN_LOGINS', DEFAULT_KNOWN_AGENT_LOGINS)).map((login) => login.toLowerCase())
-  );
-  const items = [...(payload.candidateItems || []), ...(payload.staleActiveItems || [])];
-  const itemMap = new Map(items.map((item) => [item.issue.ref, item]));
-  const surfaced = [];
-
-  for (const attempt of payload.assignmentAttempts || []) {
-    if (!shouldSurfaceMissingActor(attempt)) continue;
-
-    const detail = itemMap.get(attempt.issue.ref);
-    if (!detail?.issue?.id) continue;
-
-    const [repoFullName, issueNumberText] = attempt.issue.ref.split('#');
-    const issueNumber = Number(issueNumberText);
-    if (!repoFullName || !issueNumber) continue;
-
-    const nextLabels = [
-      ...new Set([...(detail.labels || []).filter((label) => !ALL_AGENT_LABELS.includes(label)), unsupportedLabel]),
-    ];
-    const preservedHumanActorIds = retainedHumanActorIdsFromSerialized(detail, knownAgentLogins);
-    const technicalAgentLogins = technicalAgentLoginsFromSerialized(detail, knownAgentLogins);
-
-    await ensureLabelExists(repoFullName, unsupportedLabel);
-    await replaceIssueLabels(repoFullName, issueNumber, nextLabels);
-
-    let clearedAgentAssignee = false;
-    const cleanupWarnings = [];
-    try {
-      await replaceAssignableActors(detail.issue.id, preservedHumanActorIds);
-      clearedAgentAssignee = true;
-    } catch (error) {
-      cleanupWarnings.push(`Falha ao limpar assignee técnico automaticamente por GraphQL: ${error.message || error}`);
-    }
-
-    if (technicalAgentLogins.length > 0) {
-      try {
-        await removeIssueAssignees(repoFullName, issueNumber, technicalAgentLogins);
-        clearedAgentAssignee = true;
-      } catch (error) {
-        cleanupWarnings.push(`Falha ao limpar assignee técnico por REST: ${error.message || error}`);
-      }
-    }
-
-    if (cleanupWarnings.length > 0) {
-      attempt.cleanupWarning = cleanupWarnings.join(' | ');
-    }
-
-    await addIssueComment(
-      detail.issue.id,
-      buildUnavailableComment(payload.role, attempt.issue.ref, unsupportedLabel, preferredAgentLogin)
-    );
-
-    attempt.status = 'blocked';
-    attempt.reason = `Repositório sem actor atribuível do Copilot cloud agent; issue marcada com ${unsupportedLabel}.`;
-    attempt.cleanupClearedAgentAssignee = clearedAgentAssignee;
-    surfaced.push(attempt.issue.ref);
-  }
-
-  return surfaced;
-}
-
 async function main() {
   const role = env('AGENT_DISPATCH_ROLE');
   if (!role) throw new Error('AGENT_DISPATCH_ROLE is required');
@@ -285,14 +49,20 @@ async function main() {
   }
 
   const payload = JSON.parse(fs.readFileSync(outPath, 'utf8'));
-  const surfaced = await surfaceMissingActorBlocks(payload);
-  if (surfaced.length > 0) {
-    payload.ok = true;
-    payload.surfacedMissingActorBlocks = surfaced;
-    payload.reason = `Tasks elegíveis encontradas sem actor atribuível do Copilot; bloqueios registrados em ${surfaced.join(', ')}.`;
-    fs.writeFileSync(outPath, JSON.stringify(payload, null, 2));
-    console.log(JSON.stringify({ ok: true, role, surfacedMissingActorBlocks: surfaced, outPath }, null, 2));
-  }
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        role,
+        discoveryMode: payload.discoveryMode || 'labels-and-columns-only',
+        selectedIssue: payload.selectedItem?.issue?.ref || null,
+        candidateCount: payload.candidateCount || 0,
+        outPath,
+      },
+      null,
+      2
+    )
+  );
 }
 
 main().catch((error) => {

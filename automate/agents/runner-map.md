@@ -61,6 +61,7 @@ Ao revisar funcionamento, incidentes, ownership ou backlog do ecossistema:
 1. confirme primeiro qual workflow ativo dispara o papel;
 2. confirme qual entry point de `src/` esse workflow executa hoje;
 3. confirme se o papel cai no dispatcher comum ou num script dedicado;
-4. só trate script legado como fonte principal quando ele ainda estiver no caminho real do workflow.
+4. só trate script legado como fonte principal quando ele ainda estiver no caminho real do workflow;
+5. quando a issue estiver em `override manual ativo`, preserve essa leitura até surgir delta técnico verificável no repositório alvo; não trate a simples remoção do owner humano como progresso nem como prova de fila limpa.
 
 Isso evita falso diagnóstico, comentário incorreto em issue e documentação operacional desalinhada com o runtime.

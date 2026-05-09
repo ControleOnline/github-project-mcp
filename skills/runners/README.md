@@ -63,3 +63,9 @@ Responsabilidades de referencia:
 - workflow desativado: `.github/workflows/cto-runner.yml`
 - runtime de referencia: `src/cto-runner.js`
 - logica final: `automate/scripts/cto-project-supervisor.mjs`
+
+## Direct Push Ingest
+
+- workflow desativado: `.github/workflows/direct-push-ingest.yml`
+- runtime de referencia: `src/direct-push-ingest-runner.js`
+- logica final: `src/direct-push-ingest.js`

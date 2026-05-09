@@ -4,7 +4,7 @@ Esta biblioteca cobre as skills compartilhadas do ecossistema.
 
 ## Ecosystem Centrality
 
-Trate `ControleOnline/cto-mcp` como a fonte primaria para:
+Trate `ControleOnline/agents-mcp` como a fonte primaria para:
 
 - definicao dos agents
 - runners e workflows
@@ -13,6 +13,22 @@ Trate `ControleOnline/cto-mcp` como a fonte primaria para:
 - regras estruturais do fluxo operacional
 
 Quando a pergunta for sobre orquestracao, ownership, handoff ou runtime, comece por este repositorio antes de concluir com base em repositorios consumidores.
+
+## Skill Layering Policy
+
+Use esta ordem para evitar duplicacao:
+
+- mova comportamento comum para `skills/shared/`
+- mantenha orientacao por agent em `skills/agents/`
+- mantenha mapas de runtime em `skills/runners/`
+- mantenha `agents/agent/*/agent.md` apenas com papel, fronteira e referencias obrigatorias
+- mantenha `.github/agents/*.agent.md` como wrappers finos
+
+Skills estruturais compartilhadas:
+
+- `agent-execution-baseline.md`
+- `agent-handoff-governance.md`
+- `agent-wrapper-contract.md`
 
 ## Priority Projects Policy
 
@@ -27,7 +43,7 @@ Quando houver concorrencia de demandas, prefira a que mais restaura funcionament
 ## Agent Delegation Policy
 
 - delegue quando a trilha ja pertence claramente a `Developer`, `Security`, `Quality Assurance`, `DevOps` ou `Sysadmin`
-- intervenha diretamente quando a mudanca for estrutural no `cto-mcp`
+- intervenha diretamente quando a mudanca for estrutural no `agents-mcp`
 - reorganize ownership quando a fila estiver andando no agent errado
 
 ## Shared Operational Skills
@@ -65,18 +81,11 @@ Regras centrais:
 
 Ordem sugerida:
 
-1. bloquear regressao estrutural no `cto-mcp`
+1. bloquear regressao estrutural no `agents-mcp`
 2. restaurar runner ou workflow quebrado
 3. remover ambiguidade de ownership
 4. destravar projeto prioritario
 5. reduzir reincidencia via instrucao reutilizavel
-
-## Agent Portfolio Governance
-
-- mova comportamento compartilhado para `skills/shared/`
-- mantenha orientacao por agent em `skills/agents/`
-- mantenha mapas de runtime em `skills/runners/`
-- reserve materiais exclusivos do CTO para a arvore do proprio CTO
 
 ## GitHub Evidence Review
 

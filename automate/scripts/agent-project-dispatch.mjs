@@ -8,59 +8,35 @@ import {
 } from '../../src/retry.js';
 
 const GITHUB_API_URL = 'https://api.github.com/graphql';
-const REST_API_URL = 'https://api.github.com';
 
 const ROLE_META = {
   developer: {
     displayName: 'Developer',
     label: 'agent:developer',
-    selection: 'work',
-    commentHeader: 'Developer iniciado',
-    nextInstruction:
-      'Ao concluir, deixe comentário final objetivo, troque o label para `agent:security`, remova o assignee `Copilot` e preserve assignees humanos existentes.',
   },
   security: {
     displayName: 'Security',
     label: 'agent:security',
-    selection: 'label',
-    commentHeader: 'Security iniciado',
-    nextInstruction:
-      'Ao concluir, deixe comentário final objetivo, troque o label para `agent:qa` ou `agent:developer`, remova o assignee `Copilot` e preserve assignees humanos existentes.',
   },
   qa: {
     displayName: 'Quality Assurance',
     label: 'agent:qa',
-    selection: 'label',
-    commentHeader: 'Quality Assurance iniciado',
-    nextInstruction:
-      'Ao concluir, deixe comentário final objetivo, troque o label para `agent:devops`, `agent:security` ou `agent:developer`, remova o assignee `Copilot` e preserve assignees humanos existentes.',
   },
   devops: {
     displayName: 'DevOps',
     label: 'agent:devops',
-    selection: 'label',
-    commentHeader: 'DevOps iniciado',
-    nextInstruction:
-      'Ao concluir, deixe comentário final objetivo, mova a task para `In Review`, remova labels `agent:*`, remova o assignee `Copilot` e preserve assignees humanos existentes.',
   },
 };
 
-const ALL_AGENT_LABELS = Object.values(ROLE_META).map((entry) => entry.label);
-const DEFAULT_AGENT_LOGIN = 'github-copilot[bot]';
-const DEFAULT_KNOWN_AGENT_LOGINS = 'github-copilot[bot],copilot-swe-agent,copilot';
-const DEFAULT_STALE_AFTER_MINUTES = '30';
-const DEFAULT_UNSUPPORTED_LABEL = 'ops:copilot-unavailable';
+const ALL_AGENT_LABELS = [
+  'agent:developer',
+  'agent:security',
+  'agent:qa',
+  'agent:devops',
+  'agent:sysadmin',
+];
+
 const RETRY = githubRetryConfig('AGENT');
-const LABEL_META = {
-  'agent:developer': { color: '1f6feb', description: 'Task atualmente com o agent Developer' },
-  'agent:security': { color: 'd1242f', description: 'Task atualmente com o agent Security' },
-  'agent:qa': { color: '8b5cf6', description: 'Task atualmente com o agent QA' },
-  'agent:devops': { color: 'fb8c00', description: 'Task atualmente com o agent DevOps' },
-  'ops:copilot-unavailable': {
-    color: 'd4a72c',
-    description: 'Copilot cloud agent nao habilitado no repositorio alvo',
-  },
-};
 
 function env(name, fallback = '') {
   return (process.env[name] || fallback).trim();
@@ -71,11 +47,6 @@ function parseCsv(value) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function parsePositiveNumber(value, fallback) {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 function getRole() {
@@ -90,12 +61,7 @@ function getToken() {
   return env('GITHUB_TOKEN') || env('GH_TOKEN');
 }
 
-function isCopilotUnavailableError(error) {
-  const message = error?.message || String(error || '');
-  return message.includes('Copilot agent is not enabled in this repository');
-}
-
-async function githubGraphQL(query, variables = {}, extraHeaders = {}) {
+async function githubGraphQL(query, variables = {}) {
   const token = getToken();
   if (!token) throw new Error('Missing GitHub token. Set GITHUB_TOKEN or GH_TOKEN.');
 
@@ -109,7 +75,6 @@ async function githubGraphQL(query, variables = {}, extraHeaders = {}) {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
             'User-Agent': 'controleonline-agent-dispatch',
-            ...extraHeaders,
           },
           body: JSON.stringify({ query, variables }),
         });
@@ -139,53 +104,6 @@ async function githubGraphQL(query, variables = {}, extraHeaders = {}) {
       return json.data;
     },
     { label: 'GitHub GraphQL dispatch', ...RETRY }
-  );
-}
-
-async function githubRest(path, options = {}) {
-  const token = getToken();
-  if (!token) throw new Error('Missing GitHub token. Set GITHUB_TOKEN or GH_TOKEN.');
-
-  return retryAsync(
-    async () => {
-      let response;
-      try {
-        response = await fetch(`${REST_API_URL}${path}`, {
-          ...options,
-          headers: {
-            Accept: 'application/vnd.github+json',
-            Authorization: `Bearer ${token}`,
-            'X-GitHub-Api-Version': '2022-11-28',
-            'Content-Type': 'application/json',
-            'User-Agent': 'controleonline-agent-dispatch',
-            ...(options.headers || {}),
-          },
-        });
-      } catch (error) {
-        throw retryableError(`GitHub REST request failed: ${error.message || error}`);
-      }
-
-      const text = await response.text();
-      let body;
-      try {
-        body = text ? JSON.parse(text) : null;
-      } catch {
-        const message = JSON.stringify({ status: response.status, path, body: text }, null, 2);
-        if (isRetriableStatus(response.status)) {
-          throw retryableError(message);
-        }
-        throw new Error(message);
-      }
-      if (!response.ok) {
-        const message = JSON.stringify({ status: response.status, path, body }, null, 2);
-        if (isRetriableStatus(response.status)) {
-          throw retryableError(message);
-        }
-        throw new Error(message);
-      }
-      return body;
-    },
-    { label: `GitHub REST dispatch ${path}`, ...RETRY }
   );
 }
 
@@ -224,37 +142,14 @@ async function getProjectSnapshot(org, projectNumber) {
                 state
                 createdAt
                 updatedAt
-                comments(last:10) {
-                  nodes {
-                    body
-                  }
-                }
                 labels(first:20) {
                   nodes {
                     name
                   }
                 }
-                assignees(first:20) {
-                  nodes {
-                    id
-                    login
-                  }
-                }
                 repository {
                   id
                   nameWithOwner
-                  suggestedActors(capabilities:[CAN_BE_ASSIGNED], first:20) {
-                    nodes {
-                      __typename
-                      login
-                      ... on Bot {
-                        id
-                      }
-                      ... on User {
-                        id
-                      }
-                    }
-                  }
                 }
               }
             }
@@ -297,107 +192,6 @@ function currentAgentLabel(issue) {
   return issueLabels(issue).find((label) => ALL_AGENT_LABELS.includes(label)) || null;
 }
 
-function assigneeLogins(issue) {
-  return (issue.assignees?.nodes || [])
-    .map((assignee) => (assignee?.login || '').trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function serializeAssigneeActors(issue) {
-  return (issue.assignees?.nodes || [])
-    .map((assignee) => ({
-      id: assignee?.id || null,
-      login: (assignee?.login || '').trim().toLowerCase(),
-    }))
-    .filter((assignee) => assignee.login);
-}
-
-function hasAgentAssignee(issue, knownAgentLogins) {
-  return assigneeLogins(issue).some((login) => knownAgentLogins.has(login));
-}
-
-function hasHumanAssignee(issue, knownAgentLogins) {
-  return assigneeLogins(issue).some((login) => !knownAgentLogins.has(login));
-}
-
-function hasHumanOnlyAssignee(issue, knownAgentLogins) {
-  return hasHumanAssignee(issue, knownAgentLogins) && !hasAgentAssignee(issue, knownAgentLogins);
-}
-
-function retainedHumanActorIds(issue, knownAgentLogins) {
-  return (issue.assignees?.nodes || [])
-    .filter((assignee) => {
-      const login = (assignee?.login || '').trim().toLowerCase();
-      return login && !knownAgentLogins.has(login) && assignee?.id;
-    })
-    .map((assignee) => assignee.id);
-}
-
-function technicalAgentLogins(issue, knownAgentLogins) {
-  return [...new Set(
-    (issue.assignees?.nodes || [])
-      .map((assignee) => (assignee?.login || '').trim().toLowerCase())
-      .filter((login) => login && knownAgentLogins.has(login))
-  )];
-}
-
-function isOverrideAssigneeLogin(login, assigneeOverrideLogin) {
-  return Boolean(assigneeOverrideLogin) && login === assigneeOverrideLogin;
-}
-
-function hasRedispatchableAgentAssignee(issue, knownAgentLogins, assigneeOverrideLogin) {
-  return assigneeLogins(issue).some(
-    (login) => knownAgentLogins.has(login) && !isOverrideAssigneeLogin(login, assigneeOverrideLogin)
-  );
-}
-
-function getAssignableActor(issue, preferredAgentLogin) {
-  return (issue.repository?.suggestedActors?.nodes || []).find(
-    (actor) => actor?.login?.toLowerCase() === preferredAgentLogin
-  );
-}
-
-function getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin, excludedLogins = new Set()) {
-  const assignees = issue.assignees?.nodes || [];
-  const preferred = assignees.find((assignee) => {
-    const login = (assignee?.login || '').trim().toLowerCase();
-    return assignee?.id && login === preferredAgentLogin && !excludedLogins.has(login);
-  });
-  if (preferred) return preferred;
-
-  return assignees.find((assignee) => {
-    const login = (assignee?.login || '').trim().toLowerCase();
-    return assignee?.id && knownAgentLogins.has(login) && !excludedLogins.has(login);
-  });
-}
-
-function getRedispatchableAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin, assigneeOverrideLogin) {
-  const excludedLogins = assigneeOverrideLogin ? new Set([assigneeOverrideLogin]) : new Set();
-  return getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin, excludedLogins);
-}
-
-function getDispatchActor(issue, knownAgentLogins, preferredAgentLogin) {
-  return getAssignableActor(issue, preferredAgentLogin) || getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin);
-}
-
-function recentComments(issue) {
-  return issue.comments?.nodes || [];
-}
-
-function commentMarker(type, role) {
-  return `<!-- cto-mcp-agent-dispatch:${type}:${role} -->`;
-}
-
-function hasCommentMarker(issue, type, role) {
-  return recentComments(issue).some((comment) =>
-    (comment?.body || '').includes(commentMarker(type, role))
-  );
-}
-
-function hasBootstrapComment(issue, role) {
-  return hasCommentMarker(issue, 'bootstrap', role);
-}
-
 function sortByCreatedAt(items) {
   return [...items].sort((left, right) => {
     const leftTs = Date.parse(left.content?.createdAt || '') || 0;
@@ -406,284 +200,32 @@ function sortByCreatedAt(items) {
   });
 }
 
-function minutesSince(value) {
-  const timestamp = Date.parse(value || '');
-  if (!timestamp) return null;
-  return Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+function statusMatches(status, allowedStatuses) {
+  const normalized = (status || '').trim().toLowerCase();
+  return allowedStatuses.some((entry) => entry.toLowerCase() === normalized);
 }
 
-function isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes, assigneeOverrideLogin) {
-  if (!isActiveForRole(item, role, knownAgentLogins)) return false;
-  if (!hasRedispatchableAgentAssignee(item.content, knownAgentLogins, assigneeOverrideLogin)) return false;
-  const ageMinutes = minutesSince(item.content?.updatedAt);
-  return ageMinutes !== null && ageMinutes >= staleAfterMinutes;
-}
-
-function isBootstrapActiveForRole(item, role, knownAgentLogins, preferredAgentLogin, assigneeOverrideLogin) {
-  if (!isActiveForRole(item, role, knownAgentLogins)) return false;
-  const issue = item.content;
-  const assignedActor = getRedispatchableAssignedAgentActor(
-    issue,
-    knownAgentLogins,
-    preferredAgentLogin,
-    assigneeOverrideLogin
-  );
-  if (!assignedActor?.id) return false;
-  const assignedLogin = (assignedActor.login || '').trim().toLowerCase();
-  if (!assignedLogin || assignedLogin === preferredAgentLogin) return false;
-  return !hasBootstrapComment(issue, role);
-}
-
-function isEligibleForRole(item, role, workStatus, knownAgentLogins) {
+function isEligibleForRole(item, role, workStatuses, deployStatuses) {
   const issue = item.content;
   if (!issue?.repository?.nameWithOwner) return false;
   if (issue.state !== 'OPEN') return false;
 
   const stageLabel = currentAgentLabel(issue);
-  const roleLabel = ROLE_META[role].label;
-  const agentAssigned = hasAgentAssignee(issue, knownAgentLogins);
-  const humanOnlyAssigned = hasHumanOnlyAssignee(issue, knownAgentLogins);
-
-  if (stageLabel === roleLabel) {
-    if (humanOnlyAssigned) return false;
-    return !agentAssigned;
-  }
+  const status = getStatusValue(item);
 
   if (role === 'developer') {
-    const status = getStatusValue(item);
-    if (status?.toLowerCase() !== workStatus.toLowerCase()) return false;
-    if (stageLabel) return false;
-    if (humanOnlyAssigned) return false;
-    return !agentAssigned;
+    return statusMatches(status, workStatuses) && (!stageLabel || stageLabel === ROLE_META.developer.label);
   }
 
-  return false;
+  if (role === 'devops') {
+    return statusMatches(status, deployStatuses) && stageLabel === ROLE_META.devops.label;
+  }
+
+  return statusMatches(status, workStatuses) && stageLabel === ROLE_META[role].label;
 }
 
-function isActiveForRole(item, role, knownAgentLogins) {
+function serializeItem(item) {
   const issue = item.content;
-  if (!issue?.repository?.nameWithOwner) return false;
-  if (issue.state !== 'OPEN') return false;
-  if (!hasAgentAssignee(issue, knownAgentLogins)) return false;
-  return currentAgentLabel(issue) === ROLE_META[role].label;
-}
-
-function buildAgentInstructions(role, issueRef, issueNumber, mode = 'dispatch') {
-  const meta = ROLE_META[role];
-  const agentFile = `.github/agents/${role}.agent.md`;
-  const prefix =
-    mode === 'recovery'
-      ? `Retome a execução travada ou devolvida para o agent ${meta.displayName} na issue ${issueRef}.`
-      : mode === 'bootstrap'
-        ? `Continue a execução já atribuída ao Copilot na issue ${issueRef}, agora seguindo explicitamente o papel ${meta.displayName}.`
-      : `Atue como o agent ${meta.displayName} da ControleOnline para a issue ${issueRef}.`;
-
-  return [
-    prefix,
-    `Antes de agir, leia e siga \`${agentFile}\` no repositório alvo.`,
-    'Leia também o `AGENTS.md` mais específico do código afetado.',
-    `Trabalhe a partir do branch \`task-${issueNumber}\` derivado de \`master\` quando a tarefa exigir mudanças.`,
-    'Use GitHub como fonte de verdade para issue, PR, comentários, branch, labels e evidências.',
-    mode === 'recovery'
-      ? 'Se a issue foi devolvida manualmente, trate isso como correção normal do fluxo; revise o histórico recente e continue sem esperar intervenção humana.'
-      : '',
-    meta.nextInstruction,
-  ]
-    .filter(Boolean)
-    .join(' ');
-}
-
-function buildAssignmentComment(role, issueRef) {
-  const meta = ROLE_META[role];
-  const origin =
-    role === 'developer'
-      ? 'Origem: fila `Work` do ProjectV2'
-      : `Origem: label \`${meta.label}\``;
-
-  return [
-    `### ${meta.commentHeader}`,
-    '',
-    `Issue: ${issueRef}`,
-    origin,
-    'Critério: task elegível, sem ownership exclusivamente humano e pronta para nova captura pelo agent.',
-    `Ação: o runner atribuiu o agent \`${meta.displayName}\` para iniciar a execução.`,
-  ].join('\n');
-}
-
-function buildBootstrapComment(role, issueRef, actorLogin) {
-  const meta = ROLE_META[role];
-  return [
-    `### ${meta.commentHeader} - contexto reaplicado`,
-    '',
-    `Issue: ${issueRef}`,
-    `Origem: issue já estava com o assignee técnico \`${actorLogin}\`, mas ainda precisava receber o contexto personalizado do agent \`${meta.displayName}\`.`,
-    'Ação: o runner reaplicou a atribuição com instruções explícitas do agent para a execução continuar no fluxo correto.',
-    '',
-    commentMarker('bootstrap', role),
-  ].join('\n');
-}
-
-function buildRecoveryComment(role, issueRef, staleAfterMinutes, updatedAt) {
-  const meta = ROLE_META[role];
-  const ageMinutes = minutesSince(updatedAt);
-  return [
-    `### ${meta.commentHeader} - retomada automática`,
-    '',
-    `Issue: ${issueRef}`,
-    `Origem: execução ativa em \`${meta.label}\` sem avanço recente.`,
-    `Critério: issue ainda aberta, com assignee de agent, parada há ${ageMinutes ?? 'tempo indeterminado'} minutos; limite configurado: ${staleAfterMinutes} minutos.`,
-    `Ação: o runner reatribuiu o agent \`${meta.displayName}\` para retomar a execução sem bloquear a continuação da fila.`,
-    '',
-    commentMarker('recovery', role),
-  ].join('\n');
-}
-
-function buildUnavailableComment(role, issueRef, unsupportedLabel) {
-  const meta = ROLE_META[role];
-  return [
-    `### ${meta.commentHeader} - bloqueio operacional`,
-    '',
-    `Issue: ${issueRef}`,
-    `Bloqueio: o repositório alvo não aceita atribuição do Copilot cloud agent para o papel \`${meta.displayName}\`.`,
-    `Ação: a automação marcou a issue com \`${unsupportedLabel}\`, retirou o label \`${meta.label}\` e tentou remover o assignee técnico do Copilot, preservando assignees humanos quando a API do repositório permitiu.`,
-    'Próximo passo: habilitar o Copilot agent neste repositório e depois devolver a task para `Work` ou reaplicar o label do agent correto.',
-    '',
-    commentMarker('unavailable', role),
-  ].join('\n');
-}
-
-function buildOverrideComment(role, issueRef, overrideLogin) {
-  const meta = ROLE_META[role];
-  return [
-    `### ${meta.commentHeader} - modo override`,
-    '',
-    `Issue: ${issueRef}`,
-    `Modo: atribuição manual via \`AGENT_ASSIGNEE_OVERRIDE\` (Copilot cloud agent não disponível no repositório alvo).`,
-    `Ação: o runner atribuiu \`${overrideLogin}\` como responsável pelo papel \`${meta.displayName}\`.`,
-    meta.nextInstruction,
-    '',
-    commentMarker('override', role),
-  ].join('\n');
-}
-
-async function ensureLabelExists(repoFullName, labelName) {
-  const [owner, repo] = repoFullName.split('/');
-  const meta = LABEL_META[labelName] || { color: '1f6feb', description: labelName };
-  try {
-    await githubRest(`/repos/${owner}/${repo}/labels`, {
-      method: 'POST',
-      body: JSON.stringify({
-        name: labelName,
-        color: meta.color,
-        description: meta.description,
-      }),
-    });
-  } catch (error) {
-    const payload = JSON.parse(error.message || '{}');
-    if (payload.status !== 422) throw error;
-  }
-}
-
-async function replaceIssueLabels(repoFullName, issueNumber, nextLabels) {
-  const [owner, repo] = repoFullName.split('/');
-  await githubRest(`/repos/${owner}/${repo}/issues/${issueNumber}/labels`, {
-    method: 'PUT',
-    body: JSON.stringify(nextLabels),
-  });
-}
-
-async function removeIssueAssignees(repoFullName, issueNumber, assignees) {
-  if (!assignees.length) return;
-  const [owner, repo] = repoFullName.split('/');
-  await githubRest(`/repos/${owner}/${repo}/issues/${issueNumber}/assignees`, {
-    method: 'DELETE',
-    body: JSON.stringify({ assignees }),
-  });
-}
-
-async function resolveUserActor(login) {
-  try {
-    const data = await githubRest(`/users/${login}`);
-    if (!data?.node_id) return null;
-    return { id: data.node_id, login: login.toLowerCase() };
-  } catch {
-    return null;
-  }
-}
-
-async function replaceAssignableActors(issueId, actorIds) {
-  return githubGraphQL(
-    `mutation($issueId:ID!, $actorIds:[ID!]!) {
-      replaceActorsForAssignable(input: {
-        assignableId: $issueId,
-        actorIds: $actorIds
-      }) {
-        assignable {
-          ... on Issue {
-            id
-          }
-        }
-      }
-    }`,
-    { issueId, actorIds }
-  );
-}
-
-async function assignIssueToAgent(issueId, actorIds, repositoryId, baseRef, customInstructions, model) {
-  return githubGraphQL(
-    `mutation(
-      $issueId:ID!,
-      $actorIds:[ID!]!,
-      $repositoryId:ID!,
-      $baseRef:String!,
-      $customInstructions:String!,
-      $model:String
-    ) {
-      replaceActorsForAssignable(input: {
-        assignableId: $issueId,
-        actorIds: $actorIds,
-        agentAssignment: {
-          targetRepositoryId: $repositoryId,
-          baseRef: $baseRef,
-          customInstructions: $customInstructions,
-          model: $model
-        }
-      }) {
-        assignable {
-          ... on Issue {
-            id
-          }
-        }
-      }
-    }`,
-    { issueId, actorIds, repositoryId, baseRef, customInstructions, model: model || null },
-    {
-      'GraphQL-Features': 'issues_copilot_assignment_api_support,coding_agent_model_selection',
-    }
-  );
-}
-
-async function addIssueComment(issueId, body) {
-  return githubGraphQL(
-    `mutation($subjectId:ID!, $body:String!) {
-      addComment(input:{subjectId:$subjectId, body:$body}) {
-        commentEdge {
-          node {
-            id
-          }
-        }
-      }
-    }`,
-    { subjectId: issueId, body }
-  );
-}
-
-function serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes = null) {
-  const issue = item.content;
-  const suggestedActor = getAssignableActor(issue, preferredAgentLogin);
-  const assignedAgentActor = getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin);
-  const actor = suggestedActor || assignedAgentActor;
-  const ageMinutes = minutesSince(issue.updatedAt);
   return {
     issue: {
       id: issue.id,
@@ -693,24 +235,11 @@ function serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMi
       state: issue.state,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
-      ageMinutes,
     },
     projectItemId: item.id,
     currentProjectStatus: getStatusValue(item),
     labels: issueLabels(issue),
     currentAgentLabel: currentAgentLabel(issue),
-    assignees: assigneeLogins(issue),
-    assigneeActors: serializeAssigneeActors(issue),
-    suggestedActors: (issue.repository?.suggestedActors?.nodes || [])
-      .map((candidate) => candidate?.login)
-      .filter(Boolean),
-    hasAgentAssignee: hasAgentAssignee(issue, knownAgentLogins),
-    hasHumanAssignee: hasHumanAssignee(issue, knownAgentLogins),
-    hasHumanOnlyAssignee: hasHumanOnlyAssignee(issue, knownAgentLogins),
-    canAssignPreferredAgent: Boolean(actor?.id),
-    dispatchActorSource: suggestedActor ? 'suggestedActors' : assignedAgentActor ? 'currentAgentAssignee' : null,
-    staleAfterMinutes,
-    isStale: staleAfterMinutes ? ageMinutes !== null && ageMinutes >= staleAfterMinutes : null,
   };
 }
 
@@ -728,54 +257,15 @@ async function main() {
   const org = env('AGENT_PROJECT_ORG', 'ControleOnline');
   const projectNumber = Number(env('AGENT_PROJECT_NUMBER', '1'));
   const dryRun = env('AGENT_DRY_RUN', 'true').toLowerCase() !== 'false';
-  const workStatus = env('AGENT_WORK_STATUS', 'Work');
-  const preferredAgentLogin = env('AGENT_LOGIN', DEFAULT_AGENT_LOGIN).toLowerCase();
-  const knownAgentLogins = new Set(
-    parseCsv(env('AGENT_KNOWN_LOGINS', DEFAULT_KNOWN_AGENT_LOGINS)).map((login) => login.toLowerCase())
-  );
-  const baseRef = env('AGENT_COPILOT_BASE_REF', 'master');
-  const model = env('AGENT_COPILOT_MODEL');
-  const staleAfterMinutes = parsePositiveNumber(env('AGENT_STALE_AFTER_MINUTES', DEFAULT_STALE_AFTER_MINUTES), 30);
-  const redispatchStaleActive = env('AGENT_REDISPATCH_STALE_ACTIVE', 'true').toLowerCase() !== 'false';
-  const unsupportedLabel = env('AGENT_UNSUPPORTED_LABEL', DEFAULT_UNSUPPORTED_LABEL);
-
-  const assigneeOverrideLogin = env('AGENT_ASSIGNEE_OVERRIDE', '').toLowerCase();
-  let overrideActor = null;
-  if (assigneeOverrideLogin) {
-    overrideActor = await resolveUserActor(assigneeOverrideLogin);
-    if (overrideActor) {
-      knownAgentLogins.add(assigneeOverrideLogin);
-    }
-  }
+  const workStatuses = parseCsv(env('AGENT_WORK_STATUSES', 'Work,Working'));
+  const deployStatuses = parseCsv(env('AGENT_DEPLOY_STATUSES', 'Deploy'));
 
   const data = await getProjectSnapshot(org, projectNumber);
   const project = data?.organization?.projectV2;
   if (!project) throw new Error(`Project not found: ${org}/projects/${projectNumber}`);
 
   const items = sortByCreatedAt(project.items?.nodes || []);
-  const hasUnsupportedLabel = (item) => issueLabels(item.content).includes(unsupportedLabel);
-  const unsupportedItems = items.filter((item) => hasUnsupportedLabel(item));
-  const activeItems = items.filter(
-    (item) => !hasUnsupportedLabel(item) && isActiveForRole(item, role, knownAgentLogins)
-  );
-  const bootstrapActiveItems = activeItems.filter((item) =>
-    isBootstrapActiveForRole(item, role, knownAgentLogins, preferredAgentLogin, assigneeOverrideLogin)
-  );
-  const staleActiveItems = redispatchStaleActive
-    ? activeItems.filter((item) =>
-        isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes, assigneeOverrideLogin)
-      )
-    : [];
-  const bootstrapActiveIds = new Set(bootstrapActiveItems.map((item) => item.id));
-  const staleActiveIds = new Set(staleActiveItems.map((item) => item.id));
-  const freshActiveItems = activeItems.filter(
-    (item) => !staleActiveIds.has(item.id) && !bootstrapActiveIds.has(item.id)
-  );
-  const candidateItems = items.filter(
-    (item) =>
-      (!hasUnsupportedLabel(item) || overrideActor) && isEligibleForRole(item, role, workStatus, knownAgentLogins)
-  );
-  const targetItems = [...bootstrapActiveItems, ...staleActiveItems, ...candidateItems];
+  const candidateItems = items.filter((item) => isEligibleForRole(item, role, workStatuses, deployStatuses));
 
   const result = {
     generatedAt: new Date().toISOString(),
@@ -787,200 +277,41 @@ async function main() {
       id: project.id,
       title: project.title,
     },
-    workStatus,
     roleLabel: meta.label,
-    unsupportedLabel,
-    staleAfterMinutes,
-    redispatchStaleActive,
-    activeCount: activeItems.length,
-    bootstrapActiveCount: bootstrapActiveItems.length,
-    freshActiveCount: freshActiveItems.length,
-    staleActiveCount: staleActiveItems.length,
-    unsupportedCount: unsupportedItems.length,
+    workStatuses,
+    deployStatuses,
     candidateCount: candidateItems.length,
-    activeItems: activeItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
-    staleActiveItems: staleActiveItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
-    unsupportedItems: unsupportedItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
-    candidateItems: candidateItems.map((item) => serializeItem(item, knownAgentLogins, preferredAgentLogin, staleAfterMinutes)),
-    assignmentAttempts: [],
+    candidateItems: candidateItems.map((item) => serializeItem(item)),
+    selectedItem: candidateItems.length > 0 ? serializeItem(candidateItems[0]) : null,
   };
 
-  if (targetItems.length === 0) {
+  if (candidateItems.length === 0) {
     result.ok = true;
     result.skipped = true;
-    result.reason = `Nenhuma task elegível ou execução travada foi encontrada para ${meta.displayName}.`;
+    result.reason = `Nenhuma task elegivel por tags e coluna foi encontrada para ${meta.displayName}.`;
     const outPath = writeOutputFile(result);
     console.log(JSON.stringify({ ok: true, skipped: true, reason: result.reason, outPath }, null, 2));
     return;
   }
 
-  for (const target of targetItems) {
-    const issue = target.content;
-    const issueRef = `${issue.repository.nameWithOwner}#${issue.number}`;
-    const rawActor = getDispatchActor(issue, knownAgentLogins, preferredAgentLogin);
-    const isOverride = !rawActor?.id && Boolean(overrideActor?.id);
-    const actor = rawActor || (isOverride ? overrideActor : null);
-    const targetRecord = serializeItem(target, knownAgentLogins, preferredAgentLogin, staleAfterMinutes);
-    const mode = bootstrapActiveIds.has(target.id)
-      ? 'bootstrap'
-      : staleActiveIds.has(target.id)
-        ? 'recovery'
-        : 'dispatch';
-
-    if (!actor?.id) {
-      result.assignmentAttempts.push({
-        issue: targetRecord.issue,
-        status: 'skipped',
-        reason: `O agent ${preferredAgentLogin} não apareceu em suggestedActors nem como assignee atual de agent para ${issue.repository.nameWithOwner}.`,
-        suggestedActors: targetRecord.suggestedActors,
-        assignees: targetRecord.assignees,
-      });
-      continue;
-    }
-
-    const currentLabels = issueLabels(issue);
-    const labelsToStrip = isOverride
-      ? [...ALL_AGENT_LABELS, unsupportedLabel]
-      : ALL_AGENT_LABELS;
-    const nextLabels = [...new Set([...currentLabels.filter((label) => !labelsToStrip.includes(label)), meta.label])];
-    const blockedLabels = [
-      ...new Set([...currentLabels.filter((label) => !ALL_AGENT_LABELS.includes(label)), unsupportedLabel]),
-    ];
-    const preservedHumanActorIds = retainedHumanActorIds(issue, knownAgentLogins);
-    const technicalAgentAssignees = technicalAgentLogins(issue, knownAgentLogins);
-    const nextActorIds = [...new Set([actor.id, ...preservedHumanActorIds])];
-
-    result.selectedItem = targetRecord;
-    result.selectedMode = mode;
-
-    try {
-      if (!dryRun) {
-        await ensureLabelExists(issue.repository.nameWithOwner, meta.label);
-        await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, nextLabels);
-        if (isOverride) {
-          await replaceAssignableActors(issue.id, nextActorIds);
-          if (!hasCommentMarker(issue, 'override', role)) {
-            await addIssueComment(issue.id, buildOverrideComment(role, issueRef, actor.login));
-          }
-        } else {
-          await assignIssueToAgent(
-            issue.id,
-            nextActorIds,
-            issue.repository.id,
-            baseRef,
-            buildAgentInstructions(role, issueRef, issue.number, mode),
-            model
-          );
-          const shouldComment =
-            mode === 'dispatch' ||
-            !hasCommentMarker(issue, mode === 'bootstrap' ? 'bootstrap' : 'recovery', role);
-          if (shouldComment) {
-            await addIssueComment(
-              issue.id,
-              mode === 'bootstrap'
-                ? buildBootstrapComment(role, issueRef, actor.login || preferredAgentLogin)
-                : mode === 'recovery'
-                ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
-                : buildAssignmentComment(role, issueRef)
-            );
-          }
-        }
-        result.executed = true;
-      } else {
-        result.executed = false;
-        result.previewComment = isOverride
-          ? buildOverrideComment(role, issueRef, actor.login)
-          : mode === 'bootstrap'
-            ? buildBootstrapComment(role, issueRef, actor.login || preferredAgentLogin)
-            : mode === 'recovery'
-              ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
-              : buildAssignmentComment(role, issueRef);
-        result.previewInstructions = isOverride
-          ? null
-          : buildAgentInstructions(role, issueRef, issue.number, mode);
-        result.previewLabels = nextLabels;
-        result.previewActorIds = nextActorIds;
-      }
-    } catch (error) {
-      if (!dryRun && isCopilotUnavailableError(error)) {
-        await ensureLabelExists(issue.repository.nameWithOwner, unsupportedLabel);
-        await replaceIssueLabels(issue.repository.nameWithOwner, issue.number, blockedLabels);
-        let clearedAgentAssignee = false;
-        const cleanupWarnings = [];
-        try {
-          await replaceAssignableActors(issue.id, preservedHumanActorIds);
-          clearedAgentAssignee = true;
-        } catch (cleanupError) {
-          cleanupWarnings.push(cleanupError.message || String(cleanupError || ''));
-        }
-        if (technicalAgentAssignees.length > 0) {
-          try {
-            await removeIssueAssignees(issue.repository.nameWithOwner, issue.number, technicalAgentAssignees);
-            clearedAgentAssignee = true;
-          } catch (cleanupError) {
-            cleanupWarnings.push(cleanupError.message || String(cleanupError || ''));
-          }
-        }
-        if (cleanupWarnings.length > 0) {
-          result.assignmentCleanupWarning = cleanupWarnings.join(' | ');
-        }
-        if (!hasCommentMarker(issue, 'unavailable', role)) {
-          await addIssueComment(issue.id, buildUnavailableComment(role, issueRef, unsupportedLabel));
-        }
-        result.assignmentAttempts.push({
-          issue: targetRecord.issue,
-          status: 'blocked',
-          reason: `Repositório sem suporte à atribuição do Copilot cloud agent; issue marcada com ${unsupportedLabel}.`,
-          dispatchActorSource: targetRecord.dispatchActorSource,
-          cleanupClearedAgentAssignee: clearedAgentAssignee,
-        });
-        continue;
-      }
-      throw error;
-    }
-
-    result.ok = true;
-    result.assignedIssue = issueRef;
-    result.assignedAgent = actor.login || preferredAgentLogin;
-    result.baseRef = baseRef;
-    result.dispatchActorSource = isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource;
-    result.assignmentAttempts.push({
-      issue: targetRecord.issue,
-      status: dryRun ? 'preview' : mode === 'bootstrap' ? 'bootstrapped' : mode === 'recovery' ? 'redispatched' : 'assigned',
-      reason:
-        mode === 'bootstrap'
-          ? 'Execução técnica já aberta recebeu o contexto explícito do agent.'
-          : mode === 'recovery'
-            ? 'Primeira execução travada e atribuível encontrada para retomada automática.'
-            : 'Primeira task elegível e atribuível encontrada.',
-      dispatchActorSource: isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource,
-    });
-
-    const outPath = writeOutputFile(result);
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          dryRun,
-          role,
-          mode,
-          assignedIssue: issueRef,
-          assignedAgent: actor.login || preferredAgentLogin,
-          dispatchActorSource: isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource,
-          outPath,
-        },
-        null,
-        2
-      )
-    );
-    return;
-  }
-
-  result.ok = false;
-  result.skipped = true;
-  result.reason = `Nenhuma task elegível ou execução travada pôde ser atribuída ao agent ${meta.displayName}.`;
+  result.ok = true;
+  result.discoveryMode = 'labels-and-columns-only';
+  result.reason = 'Selecao concluida sem uso de assignee, fallback tecnico ou comentario automatico.';
   const outPath = writeOutputFile(result);
-  console.log(JSON.stringify({ ok: false, skipped: true, reason: result.reason, outPath }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        dryRun,
+        role,
+        selectedIssue: result.selectedItem?.issue?.ref || null,
+        discoveryMode: result.discoveryMode,
+        outPath,
+      },
+      null,
+      2
+    )
+  );
 }
 
 main().catch((error) => {

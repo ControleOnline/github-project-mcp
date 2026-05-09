@@ -4,6 +4,11 @@
 
 `Quality Assurance` valida a trilha tecnica completa e decide entre `Developer`, `Security` e `DevOps`.
 
+## Skills compartilhadas essenciais
+
+- `skills/shared/agent-execution-baseline.md`
+- `skills/shared/agent-handoff-governance.md`
+
 ## Ownership
 
 - label oficial: `agent:qa`

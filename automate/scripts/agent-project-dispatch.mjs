@@ -341,23 +341,39 @@ function technicalAgentLogins(issue, knownAgentLogins) {
   )];
 }
 
+function isOverrideAssigneeLogin(login, assigneeOverrideLogin) {
+  return Boolean(assigneeOverrideLogin) && login === assigneeOverrideLogin;
+}
+
+function hasRedispatchableAgentAssignee(issue, knownAgentLogins, assigneeOverrideLogin) {
+  return assigneeLogins(issue).some(
+    (login) => knownAgentLogins.has(login) && !isOverrideAssigneeLogin(login, assigneeOverrideLogin)
+  );
+}
+
 function getAssignableActor(issue, preferredAgentLogin) {
   return (issue.repository?.suggestedActors?.nodes || []).find(
     (actor) => actor?.login?.toLowerCase() === preferredAgentLogin
   );
 }
 
-function getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin) {
+function getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin, excludedLogins = new Set()) {
   const assignees = issue.assignees?.nodes || [];
-  const preferred = assignees.find(
-    (assignee) => assignee?.id && (assignee?.login || '').trim().toLowerCase() === preferredAgentLogin
-  );
+  const preferred = assignees.find((assignee) => {
+    const login = (assignee?.login || '').trim().toLowerCase();
+    return assignee?.id && login === preferredAgentLogin && !excludedLogins.has(login);
+  });
   if (preferred) return preferred;
 
   return assignees.find((assignee) => {
     const login = (assignee?.login || '').trim().toLowerCase();
-    return assignee?.id && knownAgentLogins.has(login);
+    return assignee?.id && knownAgentLogins.has(login) && !excludedLogins.has(login);
   });
+}
+
+function getRedispatchableAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin, assigneeOverrideLogin) {
+  const excludedLogins = assigneeOverrideLogin ? new Set([assigneeOverrideLogin]) : new Set();
+  return getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin, excludedLogins);
 }
 
 function getDispatchActor(issue, knownAgentLogins, preferredAgentLogin) {
@@ -388,16 +404,22 @@ function minutesSince(value) {
   return Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
 }
 
-function isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes) {
+function isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes, assigneeOverrideLogin) {
   if (!isActiveForRole(item, role, knownAgentLogins)) return false;
+  if (!hasRedispatchableAgentAssignee(item.content, knownAgentLogins, assigneeOverrideLogin)) return false;
   const ageMinutes = minutesSince(item.content?.updatedAt);
   return ageMinutes !== null && ageMinutes >= staleAfterMinutes;
 }
 
-function isBootstrapActiveForRole(item, role, knownAgentLogins, preferredAgentLogin) {
+function isBootstrapActiveForRole(item, role, knownAgentLogins, preferredAgentLogin, assigneeOverrideLogin) {
   if (!isActiveForRole(item, role, knownAgentLogins)) return false;
   const issue = item.content;
-  const assignedActor = getAssignedAgentActor(issue, knownAgentLogins, preferredAgentLogin);
+  const assignedActor = getRedispatchableAssignedAgentActor(
+    issue,
+    knownAgentLogins,
+    preferredAgentLogin,
+    assigneeOverrideLogin
+  );
   if (!assignedActor?.id) return false;
   const assignedLogin = (assignedActor.login || '').trim().toLowerCase();
   if (!assignedLogin || assignedLogin === preferredAgentLogin) return false;
@@ -722,10 +744,12 @@ async function main() {
     (item) => !hasUnsupportedLabel(item) && isActiveForRole(item, role, knownAgentLogins)
   );
   const bootstrapActiveItems = activeItems.filter((item) =>
-    isBootstrapActiveForRole(item, role, knownAgentLogins, preferredAgentLogin)
+    isBootstrapActiveForRole(item, role, knownAgentLogins, preferredAgentLogin, assigneeOverrideLogin)
   );
   const staleActiveItems = redispatchStaleActive
-    ? activeItems.filter((item) => isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes))
+    ? activeItems.filter((item) =>
+        isStaleActiveForRole(item, role, knownAgentLogins, staleAfterMinutes, assigneeOverrideLogin)
+      )
     : [];
   const bootstrapActiveIds = new Set(bootstrapActiveItems.map((item) => item.id));
   const staleActiveIds = new Set(staleActiveItems.map((item) => item.id));
@@ -846,9 +870,9 @@ async function main() {
           ? buildOverrideComment(role, issueRef, actor.login)
           : mode === 'bootstrap'
             ? buildBootstrapComment(role, issueRef, actor.login || preferredAgentLogin)
-          : mode === 'recovery'
-            ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
-            : buildAssignmentComment(role, issueRef);
+            : mode === 'recovery'
+              ? buildRecoveryComment(role, issueRef, staleAfterMinutes, issue.updatedAt)
+              : buildAssignmentComment(role, issueRef);
         result.previewInstructions = isOverride
           ? null
           : buildAgentInstructions(role, issueRef, issue.number, mode);
@@ -903,8 +927,8 @@ async function main() {
         mode === 'bootstrap'
           ? 'Execução técnica já aberta recebeu o contexto explícito do agent.'
           : mode === 'recovery'
-          ? 'Primeira execução travada e atribuível encontrada para retomada automática.'
-          : 'Primeira task elegível e atribuível encontrada.',
+            ? 'Primeira execução travada e atribuível encontrada para retomada automática.'
+            : 'Primeira task elegível e atribuível encontrada.',
       dispatchActorSource: isOverride ? 'overrideAssignee' : targetRecord.dispatchActorSource,
     });
 

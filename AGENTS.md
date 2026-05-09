@@ -35,6 +35,18 @@ Regras de deduplicacao:
 - nao mantenha biblioteca operacional paralela fora dessa estrutura
 - nao replique instrucoes centrais em prompts locais quando o repositorio central puder ser referenciado
 
+## Canal de execucao
+
+Os runners do GitHub deste repositorio estao desativados como canal operacional.
+
+A execucao por papel deve acontecer pelos agentes pares no ChatGPT.
+
+Com isso:
+
+- workflows em `.github/workflows/` ficam apenas como trilha desativada e referencia tecnica
+- nenhuma rotina por `push` ou `schedule` deve ser reativada sem decisao estrutural explicita
+- ownership, handoff e criterios de execucao continuam definidos pelas skills centrais e pelos agents canonicos
+
 ## Regra de nomenclatura
 
 Nao use prefixo `cto-` em materiais compartilhados. Reserve referencias explicitas a `cto` apenas para papeis, runners e automacoes exclusivas do proprio CTO.

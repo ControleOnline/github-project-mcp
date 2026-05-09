@@ -17,6 +17,24 @@ Entradas principais:
 - `automation/`
 - `automate/`
 
+## Regra central de skills
+
+Toda regra nova deve entrar primeiro na camada certa, em vez de ser repetida entre agents, wrappers e instrucoes locais.
+
+Distribuicao obrigatoria:
+
+- comportamento compartilhado, politicas, guardrails e criterios comuns vivem em `skills/shared/`
+- papel, ownership, limites e handoff por agent vivem em `skills/agents/<agent>/README.md`
+- mapas de runtime, workflows, entry points e scripts reais vivem em `skills/runners/README.md`
+- `agents/agent/*/agent.md` devem ficar enxutos e conter apenas ponto de entrada, papel, fronteiras e referencias obrigatorias
+- wrappers locais em `.github/agents/*.agent.md` devem ser finos e apontar para a fonte canonica e para o contexto local minimo
+
+Regras de deduplicacao:
+
+- se uma regra aparecer em mais de um agent ou wrapper, extraia para uma skill compartilhada e substitua a duplicacao por referencia
+- nao mantenha biblioteca operacional paralela fora dessa estrutura
+- nao replique instrucoes centrais em prompts locais quando o repositorio central puder ser referenciado
+
 ## Regra de nomenclatura
 
 Nao use prefixo `cto-` em materiais compartilhados. Reserve referencias explicitas a `cto` apenas para papeis, runners e automacoes exclusivas do proprio CTO.
@@ -42,6 +60,6 @@ Regras obrigatorias:
 
 ## Fronteira do CTO
 
-O CTO supervisiona o ecossistema e corrige diretamente o `cto-mcp` quando houver falha estrutural de instrucao, runner, workflow, ownership ou automacao.
+O CTO supervisiona o ecossistema e corrige diretamente o `agents-mcp` quando houver falha estrutural de instrucao, runner, workflow, ownership ou automacao.
 
 O CTO nao deve substituir a execucao normal de `Developer`, `Security`, `Quality Assurance`, `DevOps` ou `Sysadmin` quando a trilha ja pertence claramente a um desses agents.

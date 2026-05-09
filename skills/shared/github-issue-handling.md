@@ -18,7 +18,7 @@ Ela cobre:
 
 Ao interagir com GitHub para gestao operacional, issues, acompanhamento, organizacao de trabalho ou consulta de estruturas de projeto:
 
-- nao use ProjectV2
+- nao use assignee como mecanismo de captura, triagem ou ownership
 - quando precisar consultar, relacionar, organizar ou atualizar informacoes equivalentes de projeto no GitHub, prefira GraphQL quando ele estiver disponivel e funcional na sessao
 - se GraphQL estiver bloqueado por limitacao de infraestrutura, rede, proxy, egress, autenticacao da sessao ou erro 403 semelhante, faca fallback para acoes e rotas do GitHub disponiveis no agent
 - trate o app do GitHub conectado ao agent como caminho principal para operacoes no GitHub
@@ -53,24 +53,27 @@ Ao checar GitHub Actions:
 
 1. antes de abrir nova issue, verifique se ja existe acompanhamento claro para o mesmo assunto
 2. se ja existir issue, investigacao, pull request ou acompanhamento equivalente, prefira atualizar, comentar ou referenciar em vez de duplicar
-3. nunca atribua responsavel, salvo regra explicita futura
+3. nunca atribua responsavel
 4. nunca exponha credenciais, segredos, tokens, conteudo sensivel de arquivos de ambiente, dados pessoais ou trechos sensiveis de logs
 5. se citar logs, resuma ou sanitize o conteudo
 6. registre contexto suficiente para entendimento tecnico, rastreabilidade e continuidade operacional
+7. quando outro agent ficar bloqueado por infraestrutura, abra ou atualize uma issue separada em `Work` com tag `agent:sysadmin`, referencie a issue original e descreva apenas o bloqueio operacional necessario para destravar a trilha
 
 ## Column Policy
 
 Use as colunas desta forma:
 
-- problemas operacionais, de desenvolvimento, de seguranca e demais encaminhamentos de trabalho devem ir para a coluna `Work`
+- problemas operacionais, de desenvolvimento, de seguranca e demais encaminhamentos de trabalho devem ir para a coluna `Work` ou `Working`
 - itens que existem para validacao manual posterior devem ir para a coluna `In Review`
+- tarefas de `DevOps` devem ser lidas na coluna `Deploy`
+- agents documentais externos ao nucleo, como `Documentor`, leem suas tasks na coluna `Done`
 - nao use coluna `Security` neste fluxo
 
 ## Classification Rules
 
 ### Work
 
-Use a coluna `Work` quando houver:
+Use a coluna `Work` ou `Working` quando houver:
 
 - bug
 - regressao
@@ -79,6 +82,7 @@ Use a coluna `Work` quando houver:
 - comportamento incorreto de codigo
 - incidente operacional que precise acompanhamento tecnico
 - indicio de problema de seguranca, vulnerabilidade, exposicao indevida, comportamento suspeito, acesso anomalo ou possivel incidente
+- bloqueio de infraestrutura que precise acompanhamento do `Sysadmin`
 
 Em casos de seguranca, mantenha a issue em `Work`, mas reduza detalhes exploraveis e preserve somente o contexto seguro necessario.
 
@@ -94,17 +98,18 @@ Use a coluna `In Review` quando houver:
 
 Ao criar ou atualizar issues:
 
-- use labels compativeis com o papel de sysadmin e com a natureza do problema
+- use tags compativeis com o papel responsavel pela proxima etapa
+- para bloqueio de infraestrutura, prefira `agent:sysadmin`
 - combine labels de papel com labels de tipo de problema quando isso ajudar a triagem
 - nao invente labels que nao existam
-- se a lista de labels disponivel nao estiver clara, siga sem label em vez de presumir uma label inexistente
+- se a lista de labels disponivel nao estiver clara, siga sem label adicional em vez de presumir uma label inexistente
 
 ## Security Handling Inside GitHub
 
 Quando houver indicio de problema de seguranca:
 
 - faca o registro no GitHub por esta skill, sem criar fluxo separado fora dela
-- coloque a issue em `Work`
+- coloque a issue em `Work` ou `Working`
 - descreva risco, impacto potencial, sintomas observados, escopo afetado e evidencias nao sensiveis
 - omita detalhes que aumentem risco de exploracao ou revelem segredos desnecessariamente
 - preserve rastreabilidade suficiente para continuidade da investigacao
@@ -115,7 +120,7 @@ Ao concluir, entregue um resumo operacional curto com:
 
 - issue criada, atualizada ou referenciada
 - coluna aplicada
-- labels aplicadas, quando houver
+- tags aplicadas, quando houver
 - motivo da classificacao
 - limitacao tecnica relevante, se houve fallback no acesso ao GitHub
 - indicacao de validacao manual pendente, quando existir
@@ -124,9 +129,8 @@ Ao concluir, entregue um resumo operacional curto com:
 ## Quality Bar
 
 - nao duplique issues sem necessidade
-- nao use ProjectV2
+- nao atribua responsavel por padrao nem por excecao
 - nao use a coluna `Security`
-- nao atribua responsavel por padrao
 - nao exponha dados sensiveis
 - nao trate GitHub como substituto do estado real do ambiente
 - sempre mantenha tudo relacionado a GitHub centralizado nesta skill

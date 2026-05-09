@@ -63,12 +63,16 @@ Labels validos:
 
 Regras obrigatorias:
 
-- o label `agent:*` define o agent responsavel atual
-- task aberta em `Work` sem `agent:*` entra por `Developer`
-- o assignee `Copilot` indica apenas execucao ativa
-- o agent atual troca o label ao concluir a propria etapa
-- `DevOps` e o unico que move a task para `In Review`
-- `Sysadmin` pode manter ou criar acompanhamento operacional em `Work` e abrir etapa de validacao em `In Review` quando houver necessidade operacional posterior
+- nenhuma task deve ser atribuida a pessoas, bots ou fallbacks tecnicos como mecanismo de captura de trabalho
+- assignees do GitHub nao participam do roteamento operacional e devem ser removidos quando aparecerem em tasks da fila
+- todos os agents devem descobrir trabalho lendo tags e coluna da issue, nunca assignees
+- task aberta em `Work` ou `Working` sem `agent:*` entra por `agent:developer`
+- `Developer`, `Security`, `Quality Assurance` e `Sysadmin` trabalham a partir da coluna `Work` ou `Working`
+- `DevOps` verifica suas tasks na coluna `Deploy`
+- agents documentais fora do nucleo, como `Documentor`, verificam suas tasks na coluna `Done`
+- qualquer agent que encontrar bloqueio de infraestrutura deve abrir ou atualizar uma issue separada em `Work` com tag `agent:sysadmin`, referenciando a issue bloqueada
+- a troca de tags continua definindo a etapa atual do fluxo tecnico
+- depois que a trilha tiver passado por `Developer`, `Security` e `Quality Assurance`, qualquer agent com evidencia concreta pode mover a task para `In Review`
 
 ## Fronteira do CTO
 

@@ -63,8 +63,8 @@ Esta pasta tambem concentra skills operacionais reutilizaveis:
 
 Valide sempre:
 
-- label `agent:*`
-- assignee tecnico versus assignees humanos
+- tags `agent:*` relevantes para a etapa atual
+- coluna real da issue
 - PR vinculado
 - conflito de merge
 - checks
@@ -72,10 +72,14 @@ Valide sempre:
 
 Regras centrais:
 
-- task em `Work` sem `agent:*` entra por `Developer`
-- conflito de merge em PR aberto no mesmo repositorio desvia para `DevOps`
-- `ops:copilot-unavailable` com PR aberto nao e fila virgem
-- `override manual ativo` nao deve ser lido como captura first-party do Copilot
+- task em `Work` ou `Working` sem `agent:*` entra por `Developer`
+- nenhum agent pode usar assignee como mecanismo de captura, redispatch ou fallback
+- `Developer`, `Security`, `Quality Assurance` e `Sysadmin` leem a fila em `Work` ou `Working`
+- `DevOps` le a fila em `Deploy`
+- agents documentais externos ao nucleo, como `Documentor`, leem a fila em `Done`
+- bloqueio de infraestrutura vira issue separada com tag `agent:sysadmin` em `Work`
+- conflito de merge em PR aberto no mesmo repositorio desvia a trilha para `DevOps`
+- depois das etapas de `Developer`, `Security` e `Quality Assurance`, qualquer agent com evidencia suficiente pode mover a task para `In Review`
 
 ## Execution Priority Policy
 

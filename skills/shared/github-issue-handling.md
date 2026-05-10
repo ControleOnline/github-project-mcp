@@ -10,7 +10,7 @@ Ela cobre:
 - classificacao correta por coluna
 - prevencao de duplicacao
 - uso de labels compativeis com o papel de sysadmin
-- regras de acesso e fallback tecnico no GitHub
+- regras de acesso e uso tecnico no GitHub
 - uso de repositorios como contexto operacional
 - uso de GitHub Actions como sinal tecnico complementar
 
@@ -20,11 +20,12 @@ Ao interagir com GitHub para gestao operacional, issues, acompanhamento, organiz
 
 - nao use assignee como mecanismo de captura, triagem ou ownership
 - nao feche issues em nome de agents; `closed` pertence apenas a humanos
-- quando precisar consultar, relacionar, organizar ou atualizar informacoes equivalentes de projeto no GitHub, prefira GraphQL quando ele estiver disponivel e funcional na sessao
-- se GraphQL estiver bloqueado por limitacao de infraestrutura, rede, proxy, egress, autenticacao da sessao ou erro 403 semelhante, faca fallback para acoes e rotas do GitHub disponiveis no agent
-- trate o app do GitHub conectado ao agent como caminho principal para operacoes no GitHub
-- trate bloqueio de GraphQL como limitacao operacional do ambiente, nao como falha fatal do repositorio, do projeto ou da rotina
-- quando o fallback for usado, continue a execucao pelo caminho alternativo mais seguro e registre a limitacao e o impacto no historico operacional
+- pode usar qualquer consulta, API, ferramenta, busca, endpoint, viewer, listagem, mutacao ou superficie do GitHub que estiver disponivel na sessao
+- trate o app do GitHub conectado ao agent como caminho principal para operacoes no GitHub, mas sem restringir a consulta a uma unica API ou superficie quando houver outras disponiveis
+- escolha livremente entre GraphQL, REST, search, listagens, consultas por repositório, issues, PRs, reviews, workflows, jobs, checks, branches, commits, comments, labels e ProjectV2 sempre que isso ajudar a obter a evidência correta
+- se uma superficie estiver bloqueada por limitacao de infraestrutura, rede, proxy, egress, autenticacao da sessao ou erro operacional semelhante, use qualquer outra superficie do GitHub que estiver disponivel e siga a execucao
+- trate bloqueio pontual de uma API ou superficie como limitacao operacional do ambiente, nao como falha fatal do repositorio, do projeto ou da rotina
+- quando um caminho alternativo for usado, continue a execucao pelo meio mais seguro e registre a limitacao e o impacto no historico operacional quando isso for relevante
 - se o ambiente exigir autenticacao baseada em arquivo sensivel para uma chamada direta necessaria, use apenas a credencial operacional ja definida para o agent e nunca exponha seu valor
 
 ## GitHub As Operational Context
@@ -124,7 +125,7 @@ Ao concluir, entregue um resumo operacional curto com:
 - coluna aplicada
 - tags aplicadas, quando houver
 - motivo da classificacao
-- limitacao tecnica relevante, se houve fallback no acesso ao GitHub
+- limitacao tecnica relevante, se houve troca de superficie no acesso ao GitHub
 - indicacao de validacao manual pendente, quando existir
 - achado relevante de repositorio ou workflow, quando isso tiver sido parte da analise
 - se houve tarefa-mãe relacionada, confirmação de que ela recebeu comentário do `Sysadmin`

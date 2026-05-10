@@ -65,16 +65,19 @@ Regras obrigatorias:
 
 - nenhuma task deve ser atribuida a pessoas, bots ou fallbacks tecnicos como mecanismo de captura de trabalho
 - assignees do GitHub nao participam do roteamento operacional e devem ser removidos quando aparecerem em tasks da fila
-- todos os agents devem descobrir trabalho lendo tags e coluna da issue, nunca assignees
+- todos os agents devem descobrir trabalho lendo a tag esperada para sua etapa e a coluna correta da issue, nunca assignees
 - agentes nao fecham tasks; so humanos podem mover uma issue para `closed`
 - para os agents, conclusao operacional significa avancar a task para a proxima coluna ou trocar a tag da proxima etapa, sem usar `open` ou `closed` como gate de trabalho
+- o fluxo tecnico padrao e sequencial: `agent:developer` -> `agent:security` -> `agent:qa`
 - task em `Work` ou `Working` sem `agent:*` entra por `agent:developer`
-- `Developer`, `Security`, `Quality Assurance` e `Sysadmin` trabalham a partir da coluna `Work` ou `Working`
-- `DevOps` verifica suas tasks na coluna `Deploy`
-- agents documentais fora do nucleo, como `Documentor`, verificam suas tasks na coluna `Done`
+- `Developer` pega tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, executa o trabalho e troca a tag para `agent:security`
+- `Security` pega apenas tasks com `agent:security` em `Work` ou `Working`, revisa e troca a tag para `agent:qa` ou devolve para `agent:developer` quando houver correção necessária
+- `Quality Assurance` pega apenas tasks com `agent:qa` em `Work` ou `Working`, valida a trilha completa e decide entre mover para `In Review` ou devolver para `agent:security` ou `agent:developer`
+- `DevOps` verifica apenas tasks com `agent:devops` na coluna `Deploy`
+- `Sysadmin` verifica apenas tasks com `agent:sysadmin` em `Work` ou `Working`
+- agents documentais fora do nucleo, como `Documentor`, verificam apenas tasks na coluna `Done`
 - qualquer agent que encontrar bloqueio de infraestrutura deve abrir ou atualizar uma issue separada em `Work` com tag `agent:sysadmin`, referenciando a issue bloqueada
-- a troca de tags continua definindo a etapa atual do fluxo tecnico
-- depois que a trilha tiver passado por `Developer`, `Security` e `Quality Assurance`, qualquer agent com evidencia concreta pode mover a task para `In Review`
+- nenhuma etapa deve capturar task com tag aleatoria fora do fluxo esperado do proprio papel
 
 ## Fronteira do CTO
 

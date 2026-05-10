@@ -12,8 +12,9 @@ Use esta skill quando um agent precisar executar uma trilha normal de produto, r
 4. leia o `AGENTS.md` local mais proximo quando houver codigo, modulo ou repositorio afetado
 5. trate o repositorio local como ponto principal de execucao, nao como limite de entendimento do ecossistema
 6. confirme o estado atual no GitHub antes de concluir
-7. use GitHub como fonte de verdade operacional quando houver issue, PR, workflow, review, label ou ownership envolvidos
-8. use memoria apenas como apoio operacional externo ao repositorio
+7. use GitHub como fonte de verdade operacional quando houver issue, PR, workflow, review, label, ownership, coluna ou historico envolvidos
+8. ao consultar GitHub, pode usar qualquer API, busca, listagem, ferramenta ou superficie que estiver disponivel na sessao
+9. use memoria apenas como apoio operacional externo ao repositorio
 
 ## Output Contract
 

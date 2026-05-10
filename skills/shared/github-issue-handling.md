@@ -59,6 +59,7 @@ Ao checar GitHub Actions:
 5. se citar logs, resuma ou sanitize o conteudo
 6. registre contexto suficiente para entendimento tecnico, rastreabilidade e continuidade operacional
 7. quando outro agent ficar bloqueado por infraestrutura, abra ou atualize uma issue separada em `Work` com tag `agent:sysadmin`, referencie a issue original e descreva apenas o bloqueio operacional necessario para destravar a trilha
+8. a issue paralela de `Sysadmin` deve continuar separada da tarefa-mãe; quando o impedimento for resolvido ou diagnosticado, o `Sysadmin` deve comentar na tarefa-mãe e trocar a issue paralela para `agent:security`
 
 ## Column Policy
 
@@ -126,6 +127,7 @@ Ao concluir, entregue um resumo operacional curto com:
 - limitacao tecnica relevante, se houve fallback no acesso ao GitHub
 - indicacao de validacao manual pendente, quando existir
 - achado relevante de repositorio ou workflow, quando isso tiver sido parte da analise
+- se houve tarefa-mãe relacionada, confirmação de que ela recebeu comentário do `Sysadmin`
 
 ## Quality Bar
 

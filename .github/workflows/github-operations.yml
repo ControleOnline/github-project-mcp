@@ -1,10 +1,10 @@
-name: GitHub Operations Runner
+name: GitHub Manager Runner
 
 on:
   workflow_dispatch:
     inputs:
       operations_json:
-        description: JSON com dry_run e operations[]
+        description: JSON com dry_run e operations[]; vazio executa a auditoria gerencial
         required: false
         type: string
       dry_run:
@@ -18,6 +18,8 @@ on:
   issue_comment:
     types:
       - created
+  schedule:
+    - cron: '*/15 * * * *'
 
 permissions:
   contents: read
@@ -25,30 +27,39 @@ permissions:
   pull-requests: write
 
 jobs:
-  github-operations:
+  github-manager:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
 
-      - name: Run GitHub operations
+      - name: Run GitHub manager
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_OPS_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           OPERATIONS_JSON: ${{ github.event.inputs.operations_json || '' }}
-          GITHUB_OPS_ALLOWED_LOGINS: luizkim,github-copilot[bot],copilot-swe-agent,copilot
+          GITHUB_MANAGER_ALLOWED_LOGINS: luizkim,github-copilot[bot],copilot-swe-agent,copilot
+          GITHUB_MANAGER_PROJECT_ORG: ControleOnline
+          GITHUB_MANAGER_PROJECT_NUMBER: 1
+          GITHUB_MANAGER_WORK_STATUSES: Work,Working
+          GITHUB_MANAGER_IN_REVIEW_STATUSES: In Review
+          GITHUB_MANAGER_DONE_STATUSES: Done
+          GITHUB_MANAGER_QA_LABEL: agent:qa
+          GITHUB_MANAGER_SECURITY_LABEL: agent:security
+          GITHUB_MANAGER_AGENT_LABELS: agent:developer,agent:security,agent:qa,agent:devops,agent:sysadmin
+          GITHUB_MANAGER_OUTPUT_DIR: /tmp
         run: node automate/scripts/github-operations.mjs
 
       - name: Upload artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: github-operations
+          name: github-manager-runner
           path: /tmp/github-operations.json
           if-no-files-found: ignore

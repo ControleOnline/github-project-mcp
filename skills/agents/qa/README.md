@@ -16,6 +16,8 @@
 - etapa anterior esperada: `agent:security`
 - proxima coluna esperada quando aprovado: `In Review`
 - devolucoes permitidas: `agent:security` ou `agent:developer`
+- `Quality Assurance` e o unico agent que conclui a trilha tecnica movendo para `In Review`
+- a passagem de `In Review` para `Deploy` e decisao humana, fora da etapa do agent `qa`
 - `Quality Assurance` nao deve capturar labels fora dessa sequencia
 
 ## Fontes principais

@@ -1,10 +1,18 @@
 import fs from 'node:fs';
-import { githubRetryConfig, isRetriableGraphQLErrors, isRetriableStatus, retryAsync, retryableError } from '../../src/retry.js';
+import {
+  githubRetryConfig,
+  isRetriableGraphQLErrors,
+  isRetriableStatus,
+  retryAsync,
+  retryableError,
+} from '../../src/retry.js';
 
 const GRAPHQL_URL = 'https://api.github.com/graphql';
 const REST_URL = 'https://api.github.com';
-const RETRY = githubRetryConfig('GITHUB_OPS');
+const RETRY = githubRetryConfig('GITHUB_MANAGER');
 const DEFAULT_ALLOWED_LOGINS = 'luizkim,github-copilot[bot],copilot-swe-agent,copilot';
+const DEFAULT_AGENT_LABELS = 'agent:developer,agent:security,agent:qa,agent:devops,agent:sysadmin';
+const COMMAND_PREFIXES = ['/github-manager', '/github-ops'];
 
 function env(name, fallback = '') {
   return (process.env[name] || fallback).trim();
@@ -38,9 +46,9 @@ async function githubGraphQL(query, variables = {}) {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${auth}`,
-            'User-Agent': 'controleonline-github-operations'
+            'User-Agent': 'controleonline-github-manager',
           },
-          body: JSON.stringify({ query, variables })
+          body: JSON.stringify({ query, variables }),
         });
       } catch (error) {
         throw retryableError(`GitHub GraphQL request failed: ${error.message || error}`);
@@ -66,7 +74,7 @@ async function githubGraphQL(query, variables = {}) {
 
       return json.data;
     },
-    { label: 'GitHub Ops GraphQL', ...RETRY }
+    { label: 'GitHub Manager GraphQL', ...RETRY }
   );
 }
 
@@ -83,9 +91,9 @@ async function githubRest(path, options = {}) {
             Authorization: `Bearer ${auth}`,
             'X-GitHub-Api-Version': '2022-11-28',
             'Content-Type': 'application/json',
-            'User-Agent': 'controleonline-github-operations',
-            ...(options.headers || {})
-          }
+            'User-Agent': 'controleonline-github-manager',
+            ...(options.headers || {}),
+          },
         });
       } catch (error) {
         throw retryableError(`GitHub REST request failed: ${error.message || error}`);
@@ -109,14 +117,21 @@ async function githubRest(path, options = {}) {
 
       return json;
     },
-    { label: `GitHub Ops REST ${path}`, ...RETRY }
+    { label: `GitHub Manager REST ${path}`, ...RETRY }
   );
 }
 
 function extractJsonBlock(text) {
   const fenced = text.match(/```json\s*([\s\S]*?)```/i);
   if (fenced) return fenced[1].trim();
-  const raw = text.replace(/^\/github-ops\s*/i, '').trim();
+
+  let raw = text.trim();
+  for (const prefix of COMMAND_PREFIXES) {
+    if (raw.toLowerCase().startsWith(prefix)) {
+      raw = raw.slice(prefix.length).trim();
+      break;
+    }
+  }
   return raw;
 }
 
@@ -129,45 +144,61 @@ function readIssueCommentCommand() {
 
   const event = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
   const body = event.comment?.body || '';
-  if (!body.trim().toLowerCase().startsWith('/github-ops')) {
+  const normalizedBody = body.trim().toLowerCase();
+  const matchesPrefix = COMMAND_PREFIXES.some((prefix) => normalizedBody.startsWith(prefix));
+  if (!matchesPrefix) {
     return { ignored: true, payload: null, source: 'issue_comment' };
   }
 
-  const allowed = new Set(parseCsv(env('GITHUB_OPS_ALLOWED_LOGINS', DEFAULT_ALLOWED_LOGINS)).map((login) => login.toLowerCase()));
+  const allowed = new Set(
+    parseCsv(env('GITHUB_MANAGER_ALLOWED_LOGINS', DEFAULT_ALLOWED_LOGINS)).map((login) => login.toLowerCase())
+  );
   const actor = (event.comment?.user?.login || '').toLowerCase();
   if (allowed.size > 0 && !allowed.has(actor)) {
-    throw new Error(`Actor not allowed to run /github-ops: ${actor || 'unknown'}`);
+    throw new Error(`Actor not allowed to run manager command: ${actor || 'unknown'}`);
   }
 
   const jsonText = extractJsonBlock(body);
   if (!jsonText) {
-    throw new Error('Missing JSON payload after /github-ops command.');
+    return {
+      ignored: false,
+      payload: null,
+      source: `issue_comment:${event.repository?.full_name || 'unknown'}#${event.issue?.number || 'unknown'}`,
+      actor,
+      commandOnly: true,
+    };
   }
 
-  const payload = JSON.parse(jsonText);
   return {
     ignored: false,
-    payload,
+    payload: JSON.parse(jsonText),
     source: `issue_comment:${event.repository?.full_name || 'unknown'}#${event.issue?.number || 'unknown'}`,
-    actor
+    actor,
+    commandOnly: false,
   };
 }
 
 function readOperationsPayload() {
   const inline = env('OPERATIONS_JSON');
   if (inline) {
-    return { payload: JSON.parse(inline), source: 'OPERATIONS_JSON' };
+    return { payload: JSON.parse(inline), source: 'OPERATIONS_JSON', commandOnly: false };
   }
 
   const fromComment = readIssueCommentCommand();
   if (fromComment.ignored) {
-    return { payload: null, source: fromComment.source, ignored: true };
+    return { payload: null, source: fromComment.source, ignored: true, commandOnly: false };
   }
-  if (fromComment.payload) {
+  if (fromComment.payload || fromComment.commandOnly) {
     return fromComment;
   }
 
-  return { payload: null, source: 'none' };
+  return { payload: null, source: 'none', commandOnly: false };
+}
+
+function splitRepo(fullName) {
+  const [owner, repo] = fullName.split('/');
+  if (!owner || !repo) throw new Error(`Invalid repo_full_name: ${fullName}`);
+  return { owner, repo };
 }
 
 async function getProjectMetadata(org, projectNumber) {
@@ -231,10 +262,138 @@ async function getProjectMetadata(org, projectNumber) {
   return project;
 }
 
-function splitRepo(fullName) {
-  const [owner, repo] = fullName.split('/');
-  if (!owner || !repo) throw new Error(`Invalid repo_full_name: ${fullName}`);
-  return { owner, repo };
+async function getProjectAuditSnapshot(org, projectNumber) {
+  const query = `query($org:String!, $projectNumber:Int!, $cursor:String) {
+    organization(login:$org) {
+      projectV2(number:$projectNumber) {
+        id
+        title
+        fields(first:50) {
+          nodes {
+            ... on ProjectV2FieldCommon {
+              id
+              name
+            }
+            ... on ProjectV2SingleSelectField {
+              id
+              name
+              options {
+                id
+                name
+              }
+            }
+          }
+        }
+        items(first:100, after:$cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            id
+            fieldValues(first:20) {
+              nodes {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                  field {
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
+                    }
+                  }
+                }
+              }
+            }
+            content {
+              ... on Issue {
+                id
+                number
+                title
+                url
+                state
+                updatedAt
+                labels(first:30) {
+                  nodes {
+                    name
+                  }
+                }
+                assignees(first:20) {
+                  nodes {
+                    login
+                  }
+                }
+                comments(last:20) {
+                  nodes {
+                    author {
+                      login
+                    }
+                    body
+                  }
+                }
+                repository {
+                  nameWithOwner
+                }
+                timelineItems(first:50, itemTypes:[CROSS_REFERENCED_EVENT]) {
+                  nodes {
+                    ... on CrossReferencedEvent {
+                      source {
+                        __typename
+                        ... on PullRequest {
+                          id
+                          number
+                          title
+                          url
+                          state
+                          isDraft
+                          reviewDecision
+                          repository {
+                            nameWithOwner
+                          }
+                          comments(last:20) {
+                            nodes {
+                              author {
+                                login
+                              }
+                              body
+                            }
+                          }
+                          reviews(last:20) {
+                            nodes {
+                              author {
+                                login
+                              }
+                              state
+                              body
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+
+  const firstPage = await githubGraphQL(query, { org, projectNumber, cursor: null });
+  const project = firstPage?.organization?.projectV2;
+  if (!project) {
+    throw new Error(`Project not found: ${org}#${projectNumber}`);
+  }
+
+  const items = [...(project.items?.nodes || [])];
+  let pageInfo = project.items?.pageInfo;
+  while (pageInfo?.hasNextPage && pageInfo.endCursor) {
+    const page = await githubGraphQL(query, { org, projectNumber, cursor: pageInfo.endCursor });
+    items.push(...(page?.organization?.projectV2?.items?.nodes || []));
+    pageInfo = page?.organization?.projectV2?.items?.pageInfo;
+  }
+  project.items.nodes = items;
+  return project;
 }
 
 function getStatusField(project) {
@@ -260,11 +419,128 @@ function getProjectItem(project, repoFullName, issueNumber, itemId) {
     return item;
   }
 
-  const item = (project.items?.nodes || []).find((entry) => {
-    return entry?.content?.repository?.nameWithOwner === repoFullName && entry?.content?.number === Number(issueNumber);
-  });
+  const item = (project.items?.nodes || []).find(
+    (entry) =>
+      entry?.content?.repository?.nameWithOwner === repoFullName &&
+      entry?.content?.number === Number(issueNumber)
+  );
   if (!item) throw new Error(`Project item not found for ${repoFullName}#${issueNumber}`);
   return item;
+}
+
+function getStatusValue(item) {
+  const value = item.fieldValues?.nodes?.find(
+    (node) => node?.field?.name?.toLowerCase() === 'status'
+  );
+  return value?.name || null;
+}
+
+function issueLabels(issue) {
+  return (issue.labels?.nodes || []).map((label) => label?.name).filter(Boolean);
+}
+
+function assigneeLogins(issue) {
+  return (issue.assignees?.nodes || []).map((assignee) => assignee?.login).filter(Boolean);
+}
+
+function normalizePullRequests(issue) {
+  const seen = new Set();
+  const pullRequests = [];
+  for (const node of issue.timelineItems?.nodes || []) {
+    const pr = node?.source;
+    if (!pr || pr.__typename !== 'PullRequest') continue;
+    const key = `${pr.repository?.nameWithOwner || ''}#${pr.number}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pullRequests.push(pr);
+  }
+  return pullRequests;
+}
+
+function hasStageLabel(labels, stageLabel) {
+  return labels.includes(stageLabel);
+}
+
+function hasApprovalByText(comments, patterns) {
+  return comments.some((entry) => {
+    const body = entry?.body || '';
+    return patterns.some((pattern) => pattern.test(body));
+  });
+}
+
+function hasApprovalByActor(comments, approvers) {
+  if (approvers.size === 0) return false;
+  return comments.some((entry) => {
+    const login = (entry?.author?.login || '').toLowerCase();
+    const body = entry?.body || '';
+    return approvers.has(login) && /\b(ok|pk|approved|aprovado|aprovada)\b/i.test(body);
+  });
+}
+
+function hasReviewApproval(prs, approvers) {
+  if (approvers.size === 0) return false;
+  return prs.some((pr) =>
+    (pr.reviews?.nodes || []).some((review) => {
+      const login = (review?.author?.login || '').toLowerCase();
+      return approvers.has(login) && (review.state === 'APPROVED' || /\b(ok|pk|approved|aprovado|aprovada)\b/i.test(review.body || ''));
+    })
+  );
+}
+
+function detectSecurityApproval(issue, prs, securityLabel, approvers) {
+  const labels = issueLabels(issue);
+  if (hasStageLabel(labels, env('GITHUB_MANAGER_QA_LABEL', 'agent:qa'))) {
+    return { approved: true, reasons: ['a task ja esta na etapa de Q.A., o que implica aprovacao anterior de Security'] };
+  }
+
+  const issueComments = issue.comments?.nodes || [];
+  const prComments = prs.flatMap((pr) => pr.comments?.nodes || []);
+  const patterns = [
+    /security aprovado/i,
+    /security approved/i,
+    /aprovad[oa].*security/i,
+    /approved.*security/i,
+  ];
+  const reasons = [];
+  if (hasStageLabel(labels, securityLabel)) {
+    reasons.push(`a task ainda carrega ${securityLabel}`);
+  }
+  if (hasApprovalByText(issueComments, patterns) || hasApprovalByText(prComments, patterns)) {
+    reasons.push('foi encontrada aprovacao textual de Security em issue ou PR');
+  }
+  if (hasApprovalByActor(issueComments, approvers) || hasApprovalByActor(prComments, approvers) || hasReviewApproval(prs, approvers)) {
+    reasons.push('foi encontrada aprovacao explicita de um aprovador configurado de Security');
+  }
+  return { approved: reasons.length > 0, reasons };
+}
+
+function detectQaApproval(issue, prs, qaLabel, approvers) {
+  const labels = issueLabels(issue);
+  const issueComments = issue.comments?.nodes || [];
+  const prComments = prs.flatMap((pr) => pr.comments?.nodes || []);
+  const patterns = [
+    /qa aprovado/i,
+    /qa approved/i,
+    /quality assurance aprovado/i,
+    /destino no projectv2:\s*in review/i,
+    /tecnicamente pronta para verificacao humana final em in review/i,
+  ];
+  const reasons = [];
+  if (hasStageLabel(labels, qaLabel)) {
+    reasons.push(`a task ainda carrega ${qaLabel}`);
+  }
+  if (hasApprovalByText(issueComments, patterns) || hasApprovalByText(prComments, patterns)) {
+    reasons.push('foi encontrada aprovacao textual de Q.A. em issue ou PR');
+  }
+  if (hasApprovalByActor(issueComments, approvers) || hasApprovalByActor(prComments, approvers) || hasReviewApproval(prs, approvers)) {
+    reasons.push('foi encontrada aprovacao explicita de um aprovador configurado de Q.A.');
+  }
+  return { approved: reasons.length > 0, reasons };
+}
+
+function statusMatches(status, allowedStatuses) {
+  const normalized = (status || '').trim().toLowerCase();
+  return allowedStatuses.some((entry) => entry.toLowerCase() === normalized);
 }
 
 async function updateProjectStatus(input) {
@@ -292,7 +568,7 @@ async function updateProjectStatus(input) {
       projectId: project.id,
       itemId: item.id,
       fieldId: statusField.id,
-      optionId: statusOption.id
+      optionId: statusOption.id,
     }
   );
 
@@ -301,7 +577,7 @@ async function updateProjectStatus(input) {
     item_id: item.id,
     target_status: input.target_status,
     repo_full_name: input.repo_full_name || item?.content?.repository?.nameWithOwner || null,
-    issue_number: input.issue_number || item?.content?.number || null
+    issue_number: input.issue_number || item?.content?.number || null,
   };
 }
 
@@ -309,7 +585,7 @@ async function addIssueComment(input) {
   const { owner, repo } = splitRepo(input.repo_full_name);
   const body = await githubRest(`/repos/${owner}/${repo}/issues/${Number(input.issue_number)}/comments`, {
     method: 'POST',
-    body: JSON.stringify({ body: input.body })
+    body: JSON.stringify({ body: input.body }),
   });
   return { comment_id: body?.id || null, html_url: body?.html_url || null };
 }
@@ -318,7 +594,7 @@ async function replaceLabels(input) {
   const { owner, repo } = splitRepo(input.repo_full_name);
   const body = await githubRest(`/repos/${owner}/${repo}/issues/${Number(input.issue_number)}/labels`, {
     method: 'PUT',
-    body: JSON.stringify(input.labels || [])
+    body: JSON.stringify(input.labels || []),
   });
   return { labels: (body || []).map((label) => label?.name).filter(Boolean) };
 }
@@ -327,7 +603,7 @@ async function addAssignees(input) {
   const { owner, repo } = splitRepo(input.repo_full_name);
   const body = await githubRest(`/repos/${owner}/${repo}/issues/${Number(input.issue_number)}/assignees`, {
     method: 'POST',
-    body: JSON.stringify({ assignees: input.assignees || [] })
+    body: JSON.stringify({ assignees: input.assignees || [] }),
   });
   return { assignees: (body?.assignees || []).map((entry) => entry?.login).filter(Boolean) };
 }
@@ -336,7 +612,7 @@ async function removeAssignees(input) {
   const { owner, repo } = splitRepo(input.repo_full_name);
   const body = await githubRest(`/repos/${owner}/${repo}/issues/${Number(input.issue_number)}/assignees`, {
     method: 'DELETE',
-    body: JSON.stringify({ assignees: input.assignees || [] })
+    body: JSON.stringify({ assignees: input.assignees || [] }),
   });
   return { assignees: (body?.assignees || []).map((entry) => entry?.login).filter(Boolean) };
 }
@@ -385,11 +661,13 @@ async function executeOperation(operation) {
       return removeAssignees(operation);
     case 'pr_review':
       return addPrReview(operation);
+    case 'manager_audit':
+      return runManagerAudit(operation.dry_run === true);
     case 'rest':
       return githubRest(operation.path, {
         method: operation.method || 'GET',
         body: operation.body !== undefined ? JSON.stringify(operation.body) : undefined,
-        headers: operation.headers || {}
+        headers: operation.headers || {},
       });
     case 'graphql':
       return githubGraphQL(operation.query, operation.variables || {});
@@ -398,8 +676,194 @@ async function executeOperation(operation) {
   }
 }
 
+function buildManagerComment(issueRef, fromStatus, targetStatus, reasons) {
+  return [
+    '### GitHub Manager',
+    '',
+    `Issue: ${issueRef}`,
+    `Ação: a task foi corrigida de \`${fromStatus}\` para \`${targetStatus}\` pelo runner gerencial.`,
+    '',
+    'Motivos objetivos:',
+    ...reasons.map((reason) => `- ${reason}`),
+    '',
+    'Manutenção aplicada: ajuste de coluna, limpeza de labels operacionais residuais e higienização de assignees técnicos quando necessário.',
+  ].join('\n');
+}
+
+function buildLabelCleanupComment(issueRef, status) {
+  return [
+    '### GitHub Manager',
+    '',
+    `Issue: ${issueRef}`,
+    `Ação: labels operacionais residuais foram removidas porque a task já estava em \`${status}\`.`,
+  ].join('\n');
+}
+
+function serializeAuditIssue(item) {
+  const issue = item.content;
+  return {
+    ref: `${issue.repository.nameWithOwner}#${issue.number}`,
+    title: issue.title,
+    url: issue.url,
+    state: issue.state,
+    status: getStatusValue(item),
+    labels: issueLabels(issue),
+    assignees: assigneeLogins(issue),
+    updatedAt: issue.updatedAt,
+  };
+}
+
+async function runManagerAudit(explicitDryRun = null) {
+  const org = env('GITHUB_MANAGER_PROJECT_ORG', 'ControleOnline');
+  const projectNumber = Number(env('GITHUB_MANAGER_PROJECT_NUMBER', '1'));
+  const dryRun =
+    explicitDryRun === null
+      ? env('GITHUB_OPS_DRY_RUN', 'false').toLowerCase() === 'true'
+      : explicitDryRun;
+  const workStatuses = parseCsv(env('GITHUB_MANAGER_WORK_STATUSES', 'Work,Working'));
+  const inReviewStatuses = parseCsv(env('GITHUB_MANAGER_IN_REVIEW_STATUSES', 'In Review'));
+  const doneStatuses = parseCsv(env('GITHUB_MANAGER_DONE_STATUSES', 'Done'));
+  const qaLabel = env('GITHUB_MANAGER_QA_LABEL', 'agent:qa');
+  const securityLabel = env('GITHUB_MANAGER_SECURITY_LABEL', 'agent:security');
+  const agentLabels = new Set(parseCsv(env('GITHUB_MANAGER_AGENT_LABELS', DEFAULT_AGENT_LABELS)));
+  const qaApprovers = new Set(parseCsv(env('GITHUB_MANAGER_QA_APPROVERS')).map((entry) => entry.toLowerCase()));
+  const securityApprovers = new Set(parseCsv(env('GITHUB_MANAGER_SECURITY_APPROVERS')).map((entry) => entry.toLowerCase()));
+  const commentChanges = env('GITHUB_MANAGER_COMMENT_CHANGES', 'true').toLowerCase() !== 'false';
+  const cleanupAssignees = env('GITHUB_MANAGER_REMOVE_ASSIGNEES', 'true').toLowerCase() !== 'false';
+
+  const project = await getProjectAuditSnapshot(org, projectNumber);
+  const statusField = getStatusField(project);
+  const inReviewOption = getStatusOption(statusField, inReviewStatuses[0] || 'In Review');
+  const actions = [];
+
+  for (const item of project.items?.nodes || []) {
+    const issue = item.content;
+    if (!issue?.repository?.nameWithOwner || issue.state !== 'OPEN') continue;
+
+    const status = getStatusValue(item);
+    const labels = issueLabels(issue);
+    const stageLabels = labels.filter((label) => agentLabels.has(label));
+    const prs = normalizePullRequests(issue);
+    const qaApproval = detectQaApproval(issue, prs, qaLabel, qaApprovers);
+    const securityApproval = detectSecurityApproval(issue, prs, securityLabel, securityApprovers);
+    const repoFullName = issue.repository.nameWithOwner;
+    const issueRef = `${repoFullName}#${issue.number}`;
+    const assignees = assigneeLogins(issue);
+
+    if (statusMatches(status, workStatuses) && qaApproval.approved && securityApproval.approved) {
+      const nextLabels = labels.filter((label) => !agentLabels.has(label));
+      const reasons = [...securityApproval.reasons, ...qaApproval.reasons];
+      const action = {
+        type: 'promote-approved-work-item',
+        issue: serializeAuditIssue(item),
+        fromStatus: status,
+        targetStatus: inReviewOption.name,
+        reasons,
+        nextLabels,
+        clearAssignees: cleanupAssignees ? assignees : [],
+      };
+      actions.push(action);
+
+      if (!dryRun) {
+        await githubGraphQL(
+          `mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!) {
+            updateProjectV2ItemFieldValue(
+              input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }
+            ) {
+              projectV2Item {
+                id
+              }
+            }
+          }`,
+          {
+            projectId: project.id,
+            itemId: item.id,
+            fieldId: statusField.id,
+            optionId: inReviewOption.id,
+          }
+        );
+
+        if (nextLabels.length !== labels.length) {
+          await replaceLabels({ repo_full_name: repoFullName, issue_number: issue.number, labels: nextLabels });
+        }
+        if (cleanupAssignees && assignees.length > 0) {
+          await removeAssignees({ repo_full_name: repoFullName, issue_number: issue.number, assignees });
+        }
+        if (commentChanges) {
+          await addIssueComment({
+            repo_full_name: repoFullName,
+            issue_number: issue.number,
+            body: buildManagerComment(issueRef, status, inReviewOption.name, reasons),
+          });
+        }
+      }
+      continue;
+    }
+
+    if ((statusMatches(status, inReviewStatuses) || statusMatches(status, doneStatuses)) && stageLabels.length > 0) {
+      const nextLabels = labels.filter((label) => !agentLabels.has(label));
+      const action = {
+        type: 'cleanup-stage-labels',
+        issue: serializeAuditIssue(item),
+        fromStatus: status,
+        targetStatus: status,
+        removedLabels: stageLabels,
+        nextLabels,
+      };
+      actions.push(action);
+
+      if (!dryRun) {
+        await replaceLabels({ repo_full_name: repoFullName, issue_number: issue.number, labels: nextLabels });
+        if (commentChanges) {
+          await addIssueComment({
+            repo_full_name: repoFullName,
+            issue_number: issue.number,
+            body: buildLabelCleanupComment(issueRef, status),
+          });
+        }
+      }
+      continue;
+    }
+
+    if (cleanupAssignees && statusMatches(status, workStatuses) && assignees.length > 0) {
+      const action = {
+        type: 'cleanup-assignees',
+        issue: serializeAuditIssue(item),
+        removedAssignees: assignees,
+      };
+      actions.push(action);
+
+      if (!dryRun) {
+        await removeAssignees({ repo_full_name: repoFullName, issue_number: issue.number, assignees });
+      }
+    }
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    mode: 'manager-audit',
+    dryRun,
+    project: {
+      org,
+      number: projectNumber,
+      id: project.id,
+      title: project.title,
+    },
+    workStatuses,
+    inReviewStatuses,
+    doneStatuses,
+    actionCount: actions.length,
+    actions,
+  };
+}
+
 function writeOutput(payload) {
-  const outDir = env('GITHUB_OPS_OUTPUT_DIR', '/tmp');
+  const outDir = env('GITHUB_MANAGER_OUTPUT_DIR', env('GITHUB_OPS_OUTPUT_DIR', '/tmp'));
   const outPath = `${outDir}/github-operations.json`;
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(payload, null, 2));
@@ -414,8 +878,34 @@ async function main() {
   }
 
   const payload = loaded.payload || {};
+  const hasOperations = Array.isArray(payload.operations) && payload.operations.length > 0;
+  const shouldRunAuditByDefault =
+    !hasOperations &&
+    (loaded.commandOnly ||
+      ['schedule', 'workflow_dispatch'].includes(env('GITHUB_EVENT_NAME')) ||
+      loaded.source === 'none');
+
+  if (shouldRunAuditByDefault) {
+    const summary = await runManagerAudit();
+    const outPath = writeOutput(summary);
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          mode: summary.mode,
+          dryRun: summary.dryRun,
+          actionCount: summary.actionCount,
+          outPath,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
   const dryRun = payload.dry_run === true || env('GITHUB_OPS_DRY_RUN', 'false').toLowerCase() === 'true';
-  const operations = Array.isArray(payload.operations) ? payload.operations : [];
+  const operations = hasOperations ? payload.operations : [];
   if (operations.length === 0) {
     throw new Error('No operations provided.');
   }
@@ -423,7 +913,7 @@ async function main() {
   const results = [];
   for (const operation of operations) {
     const record = { type: operation.type, input: operation };
-    if (dryRun) {
+    if (dryRun && operation.type !== 'manager_audit') {
       record.dry_run = true;
       results.push(record);
       continue;
@@ -442,13 +932,27 @@ async function main() {
     generatedAt: new Date().toISOString(),
     source: loaded.source,
     dryRun,
+    mode: 'operations',
     operationCount: operations.length,
     successCount: results.filter((entry) => entry.ok !== false).length,
     failureCount: results.filter((entry) => entry.ok === false).length,
-    results
+    results,
   };
   const outPath = writeOutput(summary);
-  console.log(JSON.stringify({ ok: summary.failureCount === 0, outPath, dryRun, operationCount: operations.length, failureCount: summary.failureCount }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: summary.failureCount === 0,
+        mode: summary.mode,
+        outPath,
+        dryRun,
+        operationCount: operations.length,
+        failureCount: summary.failureCount,
+      },
+      null,
+      2
+    )
+  );
   if (summary.failureCount > 0) {
     process.exitCode = 1;
   }

@@ -13,8 +13,9 @@ Use esta skill quando houver correcao direta de codigo que precise seguir o flux
 5. registre quais branches foram atualizados e o que ainda depende de validacao manual
 6. se a correcao exigir acompanhamento manual posterior, crie ou atualize a issue correspondente no GitHub
 7. quando houver runner, wrapper ou script oficial do papel atual, use essa trilha para executar ou validar a mudanca sempre que isso for viavel
-8. se nao houver conector de escrita, sessao autenticada ou outra superficie viavel para concluir a mudanca no GitHub, o agent pode usar a chave do GitHub anexada a sessao como fallback operacional
-9. ao usar esse fallback, injete a chave apenas no tempo da execucao, nunca replique o valor em arquivo versionado, issue, comentario, log ou resposta visivel
+8. se a mutacao no GitHub depender de coluna, label, comentario, review, assignee ou outra escrita que o runtime local nao consiga concluir com confianca, prefira o `GitHub Operations Runner` em `automate/github-operations.md`
+9. se nao houver conector de escrita, sessao autenticada ou outra superficie viavel para concluir a mudanca no GitHub, o agent pode usar a chave do GitHub anexada a sessao como fallback operacional
+10. ao usar esse fallback, injete a chave apenas no tempo da execucao, nunca replique o valor em arquivo versionado, issue, comentario, log ou resposta visivel
 
 ## GitHub Follow-through
 

@@ -2,7 +2,7 @@
 
 ## Papel
 
-`DevOps` corrige trilha operacional, resolve conflito de merge e promove entregas aprovadas para `staging`.
+`DevOps` corrige trilha operacional, resolve conflito de merge e coloca em producao apenas o que ja foi aprovado por humano e movido para `Deploy`.
 
 ## Skills compartilhadas essenciais
 
@@ -12,8 +12,10 @@
 ## Ownership
 
 - label oficial: `agent:devops`
-- entrada valida: conflito operacional ou entrega pronta para promocao tecnica
-- handoff esperado: `In Review` ou devolucao para o agent certo se a revisao de conteudo ainda nao tiver terminado
+- entrada valida por coluna: apenas tasks em `Deploy`
+- prerequisito normal: task ja aprovada tecnicamente por `Q.A.` em `In Review` e depois aprovada por humano para `Deploy`
+- excecao operacional: conflito de merge ou desvio de fluxo pode exigir atuacao especifica de `DevOps`, sem transformar `DevOps` na saida normal de `Q.A.`
+- handoff esperado: producao concluida ou devolucao para o agent certo se a etapa de conteudo ainda nao estiver encerrada
 
 ## Fontes principais
 

@@ -484,7 +484,6 @@ async function main() {
   for (const item of items) {
     const issue = item.content;
     if (!issue?.repository?.nameWithOwner) continue;
-    if (issue.state !== 'OPEN') continue;
 
     const issueRef = `${issue.repository.nameWithOwner}#${issue.number}`;
     const status = getStatusValue(item);

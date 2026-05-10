@@ -10,6 +10,7 @@ Esta pasta concentra os pontos de entrada canonicos dos custom agents.
 - `agents/agent/security/agent.md`
 - `agents/agent/devops/agent.md`
 - `agents/agent/sysadmin/agent.md`
+- `agents/agent/documentor/agent.md`
 
 Os wrappers locais em `.github/agents/*.agent.md` de cada projeto e submodulo devem apontar para exatamente um desses arquivos centrais por tipo.
 

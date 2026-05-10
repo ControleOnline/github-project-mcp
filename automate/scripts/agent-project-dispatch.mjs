@@ -208,7 +208,6 @@ function statusMatches(status, allowedStatuses) {
 function isEligibleForRole(item, role, workStatuses, deployStatuses) {
   const issue = item.content;
   if (!issue?.repository?.nameWithOwner) return false;
-  if (issue.state !== 'OPEN') return false;
 
   const stageLabel = currentAgentLabel(issue);
   const status = getStatusValue(item);
@@ -296,7 +295,7 @@ async function main() {
 
   result.ok = true;
   result.discoveryMode = 'labels-and-columns-only';
-  result.reason = 'Selecao concluida sem uso de assignee, fallback tecnico ou comentario automatico.';
+  result.reason = 'Selecao concluida sem uso de assignee, fallback tecnico, comentario automatico ou gate por open/closed.';
   const outPath = writeOutputFile(result);
   console.log(
     JSON.stringify(

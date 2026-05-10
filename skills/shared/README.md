@@ -80,10 +80,10 @@ Regras centrais:
 - `Developer` le apenas tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, e ao concluir troca para `agent:security`
 - `Security` le apenas tasks com `agent:security` em `Work` ou `Working`, e ao concluir troca para `agent:qa` ou devolve para `agent:developer`
 - `Quality Assurance` le apenas tasks com `agent:qa` em `Work` ou `Working`, e ao concluir move para `In Review` ou devolve para `agent:security` ou `agent:developer`
+- qualquer etapa pode abrir uma task paralela de infraestrutura com tag `agent:sysadmin` em `Work`, sempre separada da tarefa-mãe e com referência explícita para ela
+- `Sysadmin` le apenas tasks com `agent:sysadmin` em `Work` ou `Working`, resolve ou diagnostica o impedimento, depois troca a task paralela para `agent:security` e comenta na tarefa-mãe que o impedimento foi resolvido
 - `DevOps` le apenas tasks com `agent:devops` em `Deploy`
-- `Sysadmin` le apenas tasks com `agent:sysadmin` em `Work` ou `Working`
 - agents documentais externos ao nucleo, como `Documentor`, leem apenas tasks na coluna `Done`
-- bloqueio de infraestrutura vira issue separada com tag `agent:sysadmin` em `Work`
 - conflito de merge em PR aberto no mesmo repositorio desvia a trilha para `DevOps`
 - nenhuma etapa deve capturar task com tag fora do fluxo esperado do proprio papel
 

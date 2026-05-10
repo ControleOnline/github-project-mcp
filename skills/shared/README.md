@@ -74,6 +74,8 @@ Regras centrais:
 
 - task em `Work` ou `Working` sem `agent:*` entra por `Developer`
 - nenhum agent pode usar assignee como mecanismo de captura, redispatch ou fallback
+- nenhum agent pode fechar task; fechamento em `closed` pertence apenas a humanos
+- para os agents, o estado operacional valido e definido por coluna e tags, nao por `open` ou `closed`
 - `Developer`, `Security`, `Quality Assurance` e `Sysadmin` leem a fila em `Work` ou `Working`
 - `DevOps` le a fila em `Deploy`
 - agents documentais externos ao nucleo, como `Documentor`, leem a fila em `Done`

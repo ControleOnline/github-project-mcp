@@ -73,10 +73,10 @@ Regras obrigatorias:
 - `Developer` pega tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, executa o trabalho e troca a tag para `agent:security`
 - `Security` pega apenas tasks com `agent:security` em `Work` ou `Working`, revisa e troca a tag para `agent:qa` ou devolve para `agent:developer` quando houver correção necessária
 - `Quality Assurance` pega apenas tasks com `agent:qa` em `Work` ou `Working`, valida a trilha completa e decide entre mover para `In Review` ou devolver para `agent:security` ou `agent:developer`
+- qualquer etapa pode abrir uma task paralela de infraestrutura com tag `agent:sysadmin` em `Work`, sempre separada da tarefa-mãe e com referência explícita para ela
+- `Sysadmin` verifica apenas tasks com `agent:sysadmin` em `Work` ou `Working`, resolve ou diagnostica o impedimento e, ao concluir, troca a task paralela para `agent:security` e comenta na tarefa-mãe que o impedimento foi resolvido
 - `DevOps` verifica apenas tasks com `agent:devops` na coluna `Deploy`
-- `Sysadmin` verifica apenas tasks com `agent:sysadmin` em `Work` ou `Working`
 - agents documentais fora do nucleo, como `Documentor`, verificam apenas tasks na coluna `Done`
-- qualquer agent que encontrar bloqueio de infraestrutura deve abrir ou atualizar uma issue separada em `Work` com tag `agent:sysadmin`, referenciando a issue bloqueada
 - nenhuma etapa deve capturar task com tag aleatoria fora do fluxo esperado do proprio papel
 
 ## Fronteira do CTO

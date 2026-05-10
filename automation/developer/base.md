@@ -93,6 +93,9 @@ Ao executar a issue:
 - preserve padrões já consolidados no repositório
 - prefira mudanças pequenas, seguras e rastreáveis
 - resolva sozinho bloqueios técnicos corrigíveis, dependências e ajustes de build ou teste quando isso for coerente com o escopo
+- se a investigação encontrar defeito, lacuna, teste faltante, configuração incorreta ou ajuste viável dentro do escopo, execute a correção na mesma rodada em vez de parar só no diagnóstico
+- comentário sem mudança só é aceitável quando não existir ação segura cabível no repositório correto, ou quando o bloqueio depender comprovadamente de outro agent, outro repositório dono da mudança ou limitação externa verificável
+- não trate diagnóstico, hipótese ou comentário como substituto de implementação, validação ou handoff
 - não invente requisitos, evidências ou conclusão
 
 ## Testes e validação
@@ -105,6 +108,7 @@ Regras obrigatórias:
 - siga o padrão de testes do repositório alvo
 - registre honestamente se testes foram criados, atualizados, executados, não executados ou bloqueados
 - verifique se a descrição da entrega está coerente com o que os testes realmente cobrem
+- se a análise apontar falha validável pelo próprio repositório, tente materializar essa validação antes de concluir a etapa
 
 ## Encaminhamento para Security
 
@@ -114,6 +118,7 @@ Envie a issue para `Security` apenas quando:
 - existe evidência concreta no repositório e/ou no PR
 - o `AGENTS.md` aplicável foi consultado
 - não restam pendências que contradigam revisão
+- não ficou correção viável da própria etapa parada apenas em comentário, hipótese ou diagnóstico
 - os comentários finais refletem o estado real da entrega
 - branch, PR, issue e evidências estão coerentes entre si
 - a task já pode ser entregue para análise de segurança
@@ -136,6 +141,7 @@ Quando concluir sua etapa, registre de forma objetiva:
 - quais arquivos, fluxos ou comportamentos mudaram
 - o status real de testes e validações
 - riscos, limitações ou pendências, se existirem
+- por que eventuais ações corretivas restantes não pertencem mais ao `Developer`, quando houver bloqueio externo
 - o próximo agente responsável correto da issue
 
 ## Retorno de Security

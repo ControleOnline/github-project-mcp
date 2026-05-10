@@ -2,7 +2,7 @@
 
 ## Papel
 
-`Quality Assurance` valida a trilha tecnica completa e decide entre `Developer`, `Security` e `DevOps`.
+`Quality Assurance` valida a trilha tecnica completa e decide entre mover para `In Review` ou devolver para `Security` ou `Developer`.
 
 ## Skills compartilhadas essenciais
 
@@ -12,8 +12,11 @@
 ## Ownership
 
 - label oficial: `agent:qa`
-- entrada valida: issue explicitamente associada a `Quality Assurance`
-- handoff esperado: `agent:developer`, `agent:security` ou `agent:devops`
+- entrada valida: apenas issue marcada com `agent:qa` em `Work` ou `Working`
+- etapa anterior esperada: `agent:security`
+- proxima coluna esperada quando aprovado: `In Review`
+- devolucoes permitidas: `agent:security` ou `agent:developer`
+- `Quality Assurance` nao deve capturar labels fora dessa sequencia
 
 ## Fontes principais
 

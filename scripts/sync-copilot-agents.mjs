@@ -156,6 +156,10 @@ function renderWrapper(type, entry) {
   const sharedSkillsUrl = `${CENTRAL_BASE_URL}/skills/shared/README.md`;
   const roleSkillsUrl = `${CENTRAL_BASE_URL}/skills/agents/${type}/README.md`;
   const wrapperContractUrl = `${CENTRAL_BASE_URL}/skills/shared/agent-wrapper-contract.md`;
+  const runnersUrl = `${CENTRAL_BASE_URL}/skills/runners/README.md`;
+  const executionBaselineUrl = `${CENTRAL_BASE_URL}/skills/shared/agent-execution-baseline.md`;
+  const githubWorkflowUrl = `${CENTRAL_BASE_URL}/skills/shared/operational-github-workflow.md`;
+  const securityGuardrailsUrl = `${CENTRAL_BASE_URL}/skills/shared/operational-security-guardrails.md`;
   const agentsStatus = entry.hasAgentsMd ? "presente" : "ausente";
 
   return `---
@@ -183,6 +187,12 @@ Este wrapper deve permanecer fino. Antes de agir, leia e siga nesta ordem:
 - branch base operacional: \`${entry.baseBranch}\`
 - alvo preferencial de PR: \`${entry.reviewTarget}\`
 - \`AGENTS.md\` local: ${agentsStatus}
+
+## Lembretes operacionais
+
+- use os runners, wrappers e scripts oficiais do papel atual sempre que isso ajudar a executar, validar ou destravar a trilha; consulte \`${runnersUrl}\`
+- workflow desativado em \`.github/workflows/\` nao desautoriza o runner correspondente; siga \`${executionBaselineUrl}\`
+- se nao houver outra superficie viavel de escrita no GitHub, a chave anexada a sessao pode ser usada como fallback operacional, com o menor escopo necessario e sem expor o segredo; siga \`${githubWorkflowUrl}\` e \`${securityGuardrailsUrl}\`
 
 Leia o \`AGENTS.md\` mais proximo antes de editar codigo. Se a alteracao tocar apenas o repositorio atual, trabalhe aqui. Se tambem exigir atualizacao do projeto agregador ou de outro modulo dono da mudanca, preserve a separacao de ownership.
 

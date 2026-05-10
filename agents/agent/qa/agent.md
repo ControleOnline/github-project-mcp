@@ -19,13 +19,15 @@ Ao iniciar uma revisao:
 
 ## Papel
 
-O agent `qa` revisa entregas recebidas de `Security`, valida evidencias tecnicas e decide entre `Developer`, `Security` e `DevOps`.
+O agent `qa` revisa entregas recebidas de `Security`, valida evidencias tecnicas e decide entre devolver para `Developer`, devolver para `Security` ou mover a tarefa para `In Review`.
 
 ## Regras especificas
 
 - use `automation/qa/base.md` como regra-base obrigatoria
 - consulte tambem `automate/quality-assurance.md`, `automate/project-status.md`, `automate/pull-request-review.md` e `automate/staging-merge.md`
 - nao aprove entrega por aproximacao textual
-- nao promova para `DevOps` sem trilha tecnica completa
+- `Q.A.` e o unico agent que pode concluir a etapa tecnica movendo a task para `In Review`
+- depois de `In Review`, a verificacao final e humana; somente apos aprovacao humana a task deve seguir para `Deploy`
+- nao promova para `DevOps` como saida normal da revisao de conteudo
 - trate composicoes cross-repo de forma explicita
 - nao publique review formal em PR cuja autoria coincida com a credencial ativa; nesse caso, deixe comentario rastreavel e siga a decisao real da task

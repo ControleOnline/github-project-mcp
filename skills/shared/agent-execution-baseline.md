@@ -11,8 +11,8 @@ Use esta skill quando um agent precisar executar uma trilha normal de produto, r
 3. leia a referencia mais especifica em `skills/agents/` ou `skills/runners/`
 4. leia o `AGENTS.md` local mais proximo quando houver codigo, modulo ou repositorio afetado
 5. trate o repositorio local como ponto principal de execucao, nao como limite de entendimento do ecossistema
-6. quando houver runner, wrapper ou script oficial para o papel atual, prefira essa trilha de execucao antes de improvisar fluxo paralelo
-7. se o runtime local nao conseguir concluir mutacoes necessarias no GitHub, prefira a trilha oficial do `GitHub Operations Runner` no proprio `agents-mcp` em vez de fingir a mudanca de estado
+6. quando a etapa depender de mutacao real no GitHub, prefira o `GitHub Manager Runner`
+7. se o runtime local nao conseguir concluir mutacoes necessarias no GitHub, use a trilha oficial do `GitHub Manager Runner` no proprio `agents-mcp`
 8. confirme o estado atual no GitHub antes de concluir
 9. use GitHub como fonte de verdade operacional quando houver issue, PR, workflow, review, label, ownership, coluna ou historico envolvidos
 10. ao consultar ou alterar GitHub, pode usar qualquer API, busca, listagem, ferramenta ou superficie que estiver disponivel na sessao
@@ -34,5 +34,4 @@ Ao concluir, deixe claro:
 - nao trate o checkout local como fronteira de conhecimento do sistema
 - nao conclua sem validar o estado operacional atual
 - nao substitua fonte central por memoria auxiliar
-- nao deixe de usar o runner oficial por confundir workflow desativado com runner desautorizado
 - nao finja mudanca de coluna, label ou ownership quando a mutacao real puder ser feita pelo runner oficial de GitHub

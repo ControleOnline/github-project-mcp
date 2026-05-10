@@ -7,7 +7,7 @@ Automacoes do agente de DevOps.
 - detectar mudancas diretas fora do fluxo esperado;
 - criar task operacional para o time de desenvolvimento corrigir a trilha;
 - garantir que pushes sem tarefa caiam em `Work`, para posterior captura pelo runner de `Developer`, e nao em `Quality Assurance`;
-- receber tarefas aprovadas por `Quality Assurance`;
+- receber tarefas aprovadas por humano e movidas para `Deploy`;
 - receber tarefas com conflito de merge em PR aberto;
-- atualizar task branch e `staging` com o `master` atual;
-- fazer o merge em `staging` e mover a coluna para `In Review`.
+- sincronizar ambientes e refs necessarios para promocao tecnica;
+- colocar em producao o que estiver aprovado em `Deploy`.

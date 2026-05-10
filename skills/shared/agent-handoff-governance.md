@@ -10,11 +10,11 @@ Use esta skill para padronizar tags, transicao de etapa, handoff tecnico e desvi
 2. nunca atribua a task a pessoas, bots ou fallbacks tecnicos; assignee nao faz parte do fluxo
 3. agentes nao fecham tasks; so humanos podem mover a issue para `closed`
 4. se a task estiver em `Work` ou `Working` sem `agent:*`, a entrada padrao e `Developer`
-5. o fluxo tecnico padrao e sequencial: `Developer` troca para `Security`, `Security` troca para `Q.A.`, e `Q.A.` decide entre `In Review` ou devolucao para `Security` ou `Developer`
+5. o fluxo tecnico padrao e sequencial: `Developer` troca para `Security`, `Security` troca para `Q.A.`, `Q.A.` move para `In Review` quando aprovar tecnicamente, um humano decide a passagem de `In Review` para `Deploy`, e `DevOps` executa a promocao a partir de `Deploy`
 6. qualquer etapa pode abrir uma task paralela de infraestrutura com `agent:sysadmin`; essa task nunca substitui a tarefa-mãe e deve sempre referenciá-la
 7. quando o `Sysadmin` concluir a task paralela, ele deve trocar essa task para `agent:security` e comentar na tarefa-mãe que o impedimento foi resolvido ou diagnosticado
 8. cada agent so troca a tag ou a coluna da propria proxima etapa quando sua etapa estiver realmente concluida
-9. `Developer`, `Security`, `Quality Assurance` e `Sysadmin` trabalham em `Work` ou `Working`; `DevOps` trabalha em `Deploy`; agents documentais externos ao nucleo, como `Documentor`, trabalham em `Done`
+9. `Developer`, `Security`, `Quality Assurance` e `Sysadmin` trabalham em `Work` ou `Working`; `DevOps` le a fila aprovada em `Deploy`; agents documentais externos ao nucleo, como `Documentor`, trabalham em `Done`
 10. nao faca handoff sem evidencia concreta do que foi validado, corrigido ou bloqueado
 
 ## Output Contract

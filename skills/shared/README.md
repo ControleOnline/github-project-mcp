@@ -72,6 +72,16 @@ Essa trilha existe para:
 - publicar reviews
 - executar mutacoes REST ou GraphQL autorizadas
 
+## Runner Preference
+
+Quando existir runner oficial ativo para a etapa atual em `.github/workflows/`, ele volta a ser o caminho preferencial para execucao remota no GitHub.
+
+Os agents pares no ChatGPT devem:
+
+- preferir os runners ativos quando a etapa depender de mutacao remota no GitHub ou continuidade fora deste runtime local
+- usar o `GitHub Operations Runner` para mutacoes pontuais quando nao for necessario executar a etapa inteira
+- tratar a logica em `src/` e `automate/` como fonte de comportamento real dos runners
+
 ## Issue Flow Governance
 
 Valide sempre:

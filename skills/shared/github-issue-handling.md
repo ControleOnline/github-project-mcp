@@ -19,6 +19,7 @@ Ela cobre:
 Ao interagir com GitHub para gestao operacional, issues, acompanhamento, organizacao de trabalho ou consulta de estruturas de projeto:
 
 - nao use assignee como mecanismo de captura, triagem ou ownership
+- nao feche issues em nome de agents; `closed` pertence apenas a humanos
 - quando precisar consultar, relacionar, organizar ou atualizar informacoes equivalentes de projeto no GitHub, prefira GraphQL quando ele estiver disponivel e funcional na sessao
 - se GraphQL estiver bloqueado por limitacao de infraestrutura, rede, proxy, egress, autenticacao da sessao ou erro 403 semelhante, faca fallback para acoes e rotas do GitHub disponiveis no agent
 - trate o app do GitHub conectado ao agent como caminho principal para operacoes no GitHub
@@ -130,6 +131,7 @@ Ao concluir, entregue um resumo operacional curto com:
 
 - nao duplique issues sem necessidade
 - nao atribua responsavel por padrao nem por excecao
+- nao feche issues como substituto de mudanca de coluna ou tag
 - nao use a coluna `Security`
 - nao exponha dados sensiveis
 - nao trate GitHub como substituto do estado real do ambiente

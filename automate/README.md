@@ -8,6 +8,7 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 - `Security`: valida autorização, `securityFilter`, exposição de dados e entrega para `Quality Assurance`
 - `Quality Assurance`: valida entrega, checks, composição entre PRs e move para `In Review` quando aprovada tecnicamente
 - `DevOps`: resolve conflitos operacionais, sincroniza ambientes e coloca em produção o que já foi aprovado por humano e movido para `Deploy`
+- `GitHub Operations Runner`: executa mutações de GitHub a partir do próprio GitHub Actions quando o runtime local dos agents não consegue concluir a operação
 
 ## Arquivos
 
@@ -18,7 +19,9 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 - `agents/security/dispatch.mjs`: entrada operacional do despacho de `Security`
 - `agents/security/review.mjs`: entrada de compatibilidade para a base executável de revisão de Security
 - `developer/README.md`: política operacional do runner de `Developer`
+- `github-operations.md`: guia do runner dedicado a mutações no GitHub
 - `scripts/agent-flow-sync.mjs`: sincroniza label inicial de `Developer`, conflitos para `DevOps` e limpeza final
+- `scripts/github-operations.mjs`: executor genérico de mutações REST, GraphQL e mudanças de coluna no GitHub
 - `quality-assurance.md`: política central de QA
 - `security-review.md`: política central do analista de segurança
 - `project-status.md`: regras de transição usadas por QA
@@ -33,6 +36,7 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 - `workflows/qa-project-review.yml`: workflow base para QA
 - `workflows/security-project-review.yml`: workflow base para Security
 - `.github/workflows/agent-flow-sync.yml`: runner central de labels iniciais, conflitos e limpeza final
+- `.github/workflows/github-operations.yml`: workflow oficial para executar mutações de GitHub a partir de `workflow_dispatch` ou `/github-ops`
 - `src/retry.js`: helper de retry para requests ao GitHub e autenticação
 - `src/run-with-retry.js`: retry de comandos idempotentes do workflow
 
@@ -51,6 +55,7 @@ Permitir que o GitHub execute os fluxos de revisão de forma padronizada:
 9. usar coluna para a transição técnica de `Q.A.` -> `In Review`
 10. deixar a passagem `In Review` -> `Deploy` para aprovação humana
 11. usar `Deploy` como fila de leitura exclusiva de `DevOps` para promoção em produção
+12. oferecer um runner dedicado para mutações do GitHub quando o agent local estiver bloqueado por rede ou superfície de escrita
 
 ## Secrets esperados
 
@@ -113,6 +118,12 @@ Esta base está apontada para:
 - `FLOW_KNOWN_AGENT_LOGINS`: logins tratados como agentes técnicos do fluxo. Padrão: `github-copilot[bot],copilot-swe-agent,copilot`
 - `FLOW_OUTPUT_DIR`: diretório do artefato JSON da rodada
 
+### GitHub Operations
+
+- `GITHUB_OPS_DRY_RUN`: força execução em prévia no runner de mutações do GitHub
+- `GITHUB_OPS_ALLOWED_LOGINS`: logins autorizados a disparar `/github-ops` por comentário
+- `GITHUB_OPS_OUTPUT_DIR`: diretório do artefato JSON da rodada
+
 ### Retry
 
 - `GITHUB_RETRY_ATTEMPTS`: número máximo de tentativas para requests ao GitHub. Padrão: `3`
@@ -134,6 +145,7 @@ Esta base está apontada para:
 - A passagem de `In Review` para `Deploy` pertence à aprovação humana final.
 - Conflito de merge em PR aberto é desvio operacional para `DevOps`.
 - O agente de DevOps é o único que deve ler a coluna `Deploy` para promoção em produção.
+- O `GitHub Operations Runner` existe para destravar comentários, labels, reviews, assignees e mudança de coluna quando o runtime local não tiver superfície confiável de escrita no GitHub.
 - Retry automático deve cobrir falhas transitórias de rede, GitHub API e autenticação antes de falhar o workflow.
 - O fluxo de Security precisa ser conservador: ausência de evidência não vale como aprovação.
 - O script de Security foi deixado como base executável conservadora, espera uma decisão estruturada do analista e pode delegar investigação ao Copilot cloud agent quando configurado.

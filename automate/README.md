@@ -6,8 +6,8 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 
 - `Developer`: implementa e entrega para `Security`
 - `Security`: valida autorização, `securityFilter`, exposição de dados e entrega para `Quality Assurance`
-- `Quality Assurance`: valida entrega, checks, composição entre PRs e entrega para `DevOps`
-- `DevOps`: resolve conflitos operacionais, sincroniza `master`, promove para `staging` e move a coluna para `In Review`
+- `Quality Assurance`: valida entrega, checks, composição entre PRs e move para `In Review` quando aprovada tecnicamente
+- `DevOps`: resolve conflitos operacionais, sincroniza ambientes e coloca em produção o que já foi aprovado por humano e movido para `Deploy`
 
 ## Arquivos
 
@@ -48,7 +48,9 @@ Permitir que o GitHub execute os fluxos de revisão de forma padronizada:
 6. revisar PR quando aplicável
 7. redirecionar conflito de merge para `DevOps`
 8. repassar a tarefa para o próximo agente responsável correto
-9. usar coluna apenas no passo final de `DevOps` -> `In Review`
+9. usar coluna para a transição técnica de `Q.A.` -> `In Review`
+10. deixar a passagem `In Review` -> `Deploy` para aprovação humana
+11. usar `Deploy` como fila de leitura exclusiva de `DevOps` para promoção em produção
 
 ## Secrets esperados
 
@@ -107,7 +109,7 @@ Esta base está apontada para:
 
 - `FLOW_DRY_RUN`: quando `true`, apenas gera snapshot e previsão das correções de fluxo
 - `FLOW_WORK_STATUS`: nome da coluna operacional de entrada. Padrão: `Work`
-- `FLOW_IN_REVIEW_STATUS`: nome da coluna final. Padrão: `In Review`
+- `FLOW_IN_REVIEW_STATUS`: nome da coluna final de aprovacao tecnica por `Q.A.`. Padrão: `In Review`
 - `FLOW_KNOWN_AGENT_LOGINS`: logins tratados como agentes técnicos do fluxo. Padrão: `github-copilot[bot],copilot-swe-agent,copilot`
 - `FLOW_OUTPUT_DIR`: diretório do artefato JSON da rodada
 
@@ -127,10 +129,11 @@ Esta base está apontada para:
 - Os arquivos em `automate/scripts/` permanecem como compatibilidade e base compartilhada.
 - O agente de Developer entra pela coluna `Work`, mas a execução real passa a ser controlada pela atribuição ao agent.
 - Task nova em `Work` sem `agent:*` entra por padrão em `Developer`.
-- O agente de QA decide entre `Developer`, `Security` e `DevOps`.
+- O agente de QA decide entre `Developer`, `Security` e `In Review`.
 - O agente de Security decide entre `Developer` e `Quality Assurance`.
+- A passagem de `In Review` para `Deploy` pertence à aprovação humana final.
 - Conflito de merge em PR aberto é desvio operacional para `DevOps`.
-- O agente de DevOps é o único que deve mover a coluna para `In Review`.
+- O agente de DevOps é o único que deve ler a coluna `Deploy` para promoção em produção.
 - Retry automático deve cobrir falhas transitórias de rede, GitHub API e autenticação antes de falhar o workflow.
 - O fluxo de Security precisa ser conservador: ausência de evidência não vale como aprovação.
 - O script de Security foi deixado como base executável conservadora, espera uma decisão estruturada do analista e pode delegar investigação ao Copilot cloud agent quando configurado.

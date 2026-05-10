@@ -21,6 +21,9 @@ Use principalmente quando o pedido se parecer com:
 5. nao altere configuracoes sensiveis de acesso, firewall, permissoes, usuarios, chaves ou politicas sem base operacional solida
 6. nao invente estados, credenciais, hosts, tabelas, resultados ou evidencias
 7. se faltarem dados para agir com seguranca, registre a limitacao e pare no ponto seguro
+8. quando nao houver outra superficie de escrita viavel, a chave do GitHub anexada a sessao pode ser usada como fallback operacional para mudancas autorizadas pelo usuario
+9. ao usar essa chave, limite o uso ao escopo minimo necessario, prefira injecao temporaria em memoria ou ambiente de execucao e preserve rastreabilidade da acao sem revelar o segredo
+10. nunca publique, versione, cole, ecoe ou replique essa chave em arquivo persistente, commit, issue, comentario, log ou resposta visivel
 
 ## Output Contract
 
@@ -37,3 +40,4 @@ Ao concluir, entregue um resumo curto com:
 - nunca normalize acoes inseguras por conveniencia
 - nunca use evidencia fraca para justificar mudanca arriscada
 - sempre preserve confidencialidade, integridade e rastreabilidade
+- nunca trate a permissao de uso da chave anexada como autorizacao para divulgar o valor da credencial

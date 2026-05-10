@@ -59,9 +59,9 @@ Esta pasta tambem concentra skills operacionais reutilizaveis:
 - `email-reading-fallback.md`
 - `task-completion-criteria.md`
 
-## GitHub Mutation Fallback
+## GitHub Mutation Channel
 
-Quando o agent precisar de mutacoes reais no GitHub e o runtime local nao tiver egress confiavel para `api.github.com`, a trilha oficial de fallback passa a ser o `GitHub Operations Runner` descrito em `automate/github-operations.md`.
+Quando o agent precisar de mutacoes reais no GitHub, a trilha oficial passa a ser o `GitHub Manager Runner` descrito em `automate/github-operations.md`.
 
 Essa trilha existe para:
 
@@ -71,16 +71,15 @@ Essa trilha existe para:
 - ajustar assignees
 - publicar reviews
 - executar mutacoes REST ou GraphQL autorizadas
+- corrigir inconsistencias operacionais de coluna e labels
 
 ## Runner Preference
 
-Quando existir runner oficial ativo para a etapa atual em `.github/workflows/`, ele volta a ser o caminho preferencial para execucao remota no GitHub.
+Quando a etapa depender de mutacao remota no GitHub ou continuidade fora deste runtime local:
 
-Os agents pares no ChatGPT devem:
-
-- preferir os runners ativos quando a etapa depender de mutacao remota no GitHub ou continuidade fora deste runtime local
-- usar o `GitHub Operations Runner` para mutacoes pontuais quando nao for necessario executar a etapa inteira
-- tratar a logica em `src/` e `automate/` como fonte de comportamento real dos runners
+- prefira o `GitHub Manager Runner`
+- trate a logica em `automate/scripts/github-operations.mjs` como fonte de comportamento real
+- nao reintroduza runners paralelos por papel sem necessidade estrutural clara
 
 ## Issue Flow Governance
 
@@ -101,8 +100,9 @@ Regras centrais:
 - para os agents, o estado operacional valido e definido por coluna e tags, nao por `open` ou `closed`
 - o fluxo padrao de tags e sequencial: `agent:developer` -> `agent:security` -> `agent:qa`
 - `Developer` le apenas tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, e ao concluir troca para `agent:security`
-- `Security` le apenas tasks com `agent:security` em `Work` ou `Working`, e ao concluir troca para `agent:qa` ou devolve para `agent:developer`
+- `Security` le apenas tasks com `agent:security` em `Work` ou `Working`, e ao concluir troca para `agent:qa`
 - `Quality Assurance` le apenas tasks com `agent:qa` em `Work` ou `Working`, e ao concluir move para `In Review` ou devolve para `agent:security` ou `agent:developer`
+- o runner gerencial pode corrigir para `In Review` task que ja tenha evidencias de aprovacao de `Security` e `Q.A.` mas tenha ficado na coluna errada
 - a passagem de `In Review` para `Deploy` pertence a revisao humana final, fora da etapa dos agents
 - `DevOps` le apenas tasks na coluna `Deploy` e coloca em producao o que foi aprovado ali
 - qualquer etapa pode abrir uma task paralela de infraestrutura com tag `agent:sysadmin` em `Work`, sempre separada da tarefa-mãe e com referência explícita para ela
@@ -110,37 +110,3 @@ Regras centrais:
 - agents documentais externos ao nucleo, como `Documentor`, leem apenas tasks na coluna `Done`
 - conflito de merge em PR aberto no mesmo repositorio desvia a trilha para `DevOps`
 - nenhuma etapa deve capturar task com tag fora do fluxo esperado do proprio papel
-
-## Execution Priority Policy
-
-Ordem sugerida:
-
-1. bloquear regressao estrutural no `agents-mcp`
-2. restaurar runner ou workflow quebrado
-3. remover ambiguidade de ownership
-4. destravar projeto prioritario
-5. reduzir reincidencia via instrucao reutilizavel
-
-## GitHub Evidence Review
-
-Ordem de evidencia:
-
-1. estado atual do repositorio
-2. branch e commits
-3. issue e PR
-4. comentarios, reviews e labels
-5. execucoes de workflow, jobs, steps e status checks
-
-Nao declare saude, bloqueio ou conclusao sem evidencia verificavel no GitHub.
-
-## Runner Actions Ops
-
-Quando houver suspeita de falha em workflow, runner, logs ou steps, cruze:
-
-- workflow ativo em `.github/workflows/`
-- entry point real em `src/`
-- script final em `automate/scripts/`
-- run em `action_required`
-- check externo em `error` ou `failure`
-
-Quando existir execucao recente, nao conclua olhando so issue ou PR.

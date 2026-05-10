@@ -13,6 +13,19 @@ Com isso:
 - os arquivos de workflow permanecem apenas como trilha historica e ponto de desligamento explicito
 - os runtimes em `src/` e os scripts em `automate/` seguem como referencia tecnica do fluxo
 - nenhuma automacao operacional deve voltar a depender de `push` ou `schedule` nesses runners sem decisao estrutural explicita
+- os agentes pares devem usar seus runners, wrappers e scripts oficiais sempre que isso ajudar a executar, validar ou destravar a trilha operacional
+- o fato de o workflow do GitHub estar desativado nao desautoriza o runner; o runner continua sendo a referencia oficial de execucao para os agentes pares
+- o uso dos runners pelos agentes pares e encorajado, inclusive para inspecao, dispatch, validacao e handoff tecnico
+
+## Uso operacional esperado
+
+Quando um agent par precisar agir:
+
+- prefira a trilha oficial descrita neste arquivo antes de improvisar fluxo paralelo
+- use o wrapper em `automate/agents/` quando ele existir para o papel atual
+- use o runtime em `src/` e a logica final em `automate/scripts/` como fonte de comportamento real
+- trate `workflow_dispatch` nos workflows desativados apenas como trilha historica e ponto explicito de desligamento do canal antigo
+- nao trate a ausencia de `schedule` ou `push` nesses workflows como motivo para evitar o uso do runner correspondente pelo agent par
 
 ## Developer
 

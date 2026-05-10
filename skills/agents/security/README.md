@@ -2,7 +2,7 @@
 
 ## Papel
 
-`Security` revisa entregas vindas de `Developer` e decide entre `Developer`, `Quality Assurance` e `DevOps`.
+`Security` revisa entregas vindas de `Developer` e decide entre devolver para `Developer` ou passar para `Quality Assurance`.
 
 ## Skills compartilhadas essenciais
 
@@ -12,8 +12,11 @@
 ## Ownership
 
 - label oficial: `agent:security`
-- entrada valida: issue explicitamente associada a `Security`
-- handoff esperado: `agent:qa`, `agent:developer` ou `agent:devops`
+- entrada valida: apenas issue marcada com `agent:security` em `Work` ou `Working`
+- etapa anterior esperada: `agent:developer`
+- proxima etapa esperada: `agent:qa`
+- devolucao permitida: `agent:developer`
+- `Security` nao deve capturar labels fora dessa sequencia
 
 ## Fontes principais
 

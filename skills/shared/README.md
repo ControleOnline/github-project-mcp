@@ -63,8 +63,8 @@ Esta pasta tambem concentra skills operacionais reutilizaveis:
 
 Valide sempre:
 
-- tags `agent:*` relevantes para a etapa atual
-- coluna real da issue
+- a tag `agent:*` esperada para a etapa atual
+- a coluna real da issue
 - PR vinculado
 - conflito de merge
 - checks
@@ -76,12 +76,16 @@ Regras centrais:
 - nenhum agent pode usar assignee como mecanismo de captura, redispatch ou fallback
 - nenhum agent pode fechar task; fechamento em `closed` pertence apenas a humanos
 - para os agents, o estado operacional valido e definido por coluna e tags, nao por `open` ou `closed`
-- `Developer`, `Security`, `Quality Assurance` e `Sysadmin` leem a fila em `Work` ou `Working`
-- `DevOps` le a fila em `Deploy`
-- agents documentais externos ao nucleo, como `Documentor`, leem a fila em `Done`
+- o fluxo padrao de tags e sequencial: `agent:developer` -> `agent:security` -> `agent:qa`
+- `Developer` le apenas tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, e ao concluir troca para `agent:security`
+- `Security` le apenas tasks com `agent:security` em `Work` ou `Working`, e ao concluir troca para `agent:qa` ou devolve para `agent:developer`
+- `Quality Assurance` le apenas tasks com `agent:qa` em `Work` ou `Working`, e ao concluir move para `In Review` ou devolve para `agent:security` ou `agent:developer`
+- `DevOps` le apenas tasks com `agent:devops` em `Deploy`
+- `Sysadmin` le apenas tasks com `agent:sysadmin` em `Work` ou `Working`
+- agents documentais externos ao nucleo, como `Documentor`, leem apenas tasks na coluna `Done`
 - bloqueio de infraestrutura vira issue separada com tag `agent:sysadmin` em `Work`
 - conflito de merge em PR aberto no mesmo repositorio desvia a trilha para `DevOps`
-- depois das etapas de `Developer`, `Security` e `Quality Assurance`, qualquer agent com evidencia suficiente pode mover a task para `In Review`
+- nenhuma etapa deve capturar task com tag fora do fluxo esperado do proprio papel
 
 ## Execution Priority Policy
 

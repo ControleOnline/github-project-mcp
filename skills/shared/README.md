@@ -59,6 +59,19 @@ Esta pasta tambem concentra skills operacionais reutilizaveis:
 - `email-reading-fallback.md`
 - `task-completion-criteria.md`
 
+## GitHub Mutation Fallback
+
+Quando o agent precisar de mutacoes reais no GitHub e o runtime local nao tiver egress confiavel para `api.github.com`, a trilha oficial de fallback passa a ser o `GitHub Operations Runner` descrito em `automate/github-operations.md`.
+
+Essa trilha existe para:
+
+- mover item entre colunas do ProjectV2
+- comentar em issue ou PR
+- trocar labels
+- ajustar assignees
+- publicar reviews
+- executar mutacoes REST ou GraphQL autorizadas
+
 ## Issue Flow Governance
 
 Valide sempre:

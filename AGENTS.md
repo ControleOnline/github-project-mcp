@@ -66,7 +66,9 @@ Regras obrigatorias:
 - nenhuma task deve ser atribuida a pessoas, bots ou fallbacks tecnicos como mecanismo de captura de trabalho
 - assignees do GitHub nao participam do roteamento operacional e devem ser removidos quando aparecerem em tasks da fila
 - todos os agents devem descobrir trabalho lendo tags e coluna da issue, nunca assignees
-- task aberta em `Work` ou `Working` sem `agent:*` entra por `agent:developer`
+- agentes nao fecham tasks; so humanos podem mover uma issue para `closed`
+- para os agents, conclusao operacional significa avancar a task para a proxima coluna ou trocar a tag da proxima etapa, sem usar `open` ou `closed` como gate de trabalho
+- task em `Work` ou `Working` sem `agent:*` entra por `agent:developer`
 - `Developer`, `Security`, `Quality Assurance` e `Sysadmin` trabalham a partir da coluna `Work` ou `Working`
 - `DevOps` verifica suas tasks na coluna `Deploy`
 - agents documentais fora do nucleo, como `Documentor`, verificam suas tasks na coluna `Done`

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const GITHUB_API_URL = 'https://api.github.com/graphql';
 const DECISION_DEVELOPER = 'Developer';
 const DECISION_SECURITY = 'Security';
-const DECISION_STAGING = 'Staging';
+const DECISION_IN_REVIEW = 'In Review';
 
 function env(name, fallback = '') {
   return (process.env[name] || fallback).trim();
@@ -476,9 +476,9 @@ function buildDecision(issue, prs, securityApprovers) {
   }
 
   reasons.push('Checks relevantes estao verdes ou a trilha ja traz evidencia tecnica equivalente suficiente.');
-  reasons.push('Ainda pode ser necessario complementar a regra de merge em staging para composicoes cross-repo.');
+  reasons.push('A entrega esta tecnicamente pronta para verificacao humana final em In Review.');
   return {
-    projectTarget: DECISION_STAGING,
+    projectTarget: DECISION_IN_REVIEW,
     prReviewAction: 'APPROVE',
     status: 'approved',
     reasons
@@ -487,7 +487,7 @@ function buildDecision(issue, prs, securityApprovers) {
 
 function buildIssueComment(issueRef, decision) {
   const header =
-    decision.projectTarget === DECISION_STAGING
+    decision.projectTarget === DECISION_IN_REVIEW
       ? 'QA aprovado'
       : decision.projectTarget === DECISION_SECURITY
         ? 'QA aguardando seguranca'

@@ -6,54 +6,54 @@ A associação oficial do fluxo é sempre o agente responsável real da tarefa.
 
 ## Entrada de QA
 
-A automacao de QA so pode capturar uma tarefa quando:
+A automação de QA só pode capturar uma tarefa quando:
 
 - a issue existir no fluxo operacional
-- o agente responsavel atual estiver em `Quality Assurance`
+- o agente responsável atual estiver em `Quality Assurance`
 
-## Saidas validas
+## Saídas válidas
 
-As unicas saidas validas ao final da revisao de QA sao:
+As únicas saídas válidas ao final da revisão de QA são:
 
 - `Developer`
 - `Security`
-- `DevOps`
+- `In Review`
 
-## Regras de transicao
+## Regras de transição
 
 ### `Quality Assurance` -> `Developer`
 
 Use quando houver:
 
 - reprovação funcional
-- desvio tecnico
+- desvio técnico
 - desvio de conformidade
 - teste faltando
-- check critico vermelho
-- composicao cross-repo incompleta
-- ausencia de evidencia suficiente
+- check crítico vermelho
+- composição cross-repo incompleta
+- ausência de evidência suficiente
 
 ### `Quality Assurance` -> `Security`
 
 Use quando:
 
-- a entrega ainda depender de decisao ou aprofundamento de seguranca
-- essa validacao ainda nao estiver explicitamente concluida
+- a entrega ainda depender de decisão ou aprofundamento de segurança
+- essa validação ainda não estiver explicitamente concluída
 
-### `Quality Assurance` -> `DevOps`
+### `Quality Assurance` -> `In Review`
 
 Use quando:
 
 - a entrega estiver aprovada
-- a trilha tecnica estiver completa
-- os checks relevantes estiverem aceitaveis
-- a seguranca estiver concluida quando obrigatoria
-- a task estiver pronta para promocao tecnica em `staging`
+- a trilha técnica estiver completa
+- os checks relevantes estiverem aceitáveis
+- a segurança estiver concluída quando obrigatória
+- a task estiver pronta para verificação humana final
 
 ## Fallback operacional
 
-Se GraphQL nao estiver disponivel:
+Se GraphQL não estiver disponível:
 
-- nao inferir agente responsavel por aproximacao textual
+- não inferir agente responsável por aproximação textual
 - registrar bloqueio operacional
-- nao fingir mudanca de agente responsavel
+- não fingir mudança de agente responsável nem de coluna

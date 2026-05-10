@@ -16,8 +16,10 @@
 ## Ownership
 
 - label oficial sugerido: `agent:sysadmin`
-- entrada valida: investigacao operacional, incidente, manutencao, observabilidade, capacidade, diagnostico em ambiente e confirmacao de estado real
-- handoff esperado: issue atualizada, acompanhamento operacional em `Work`, validacao manual em `In Review` quando houver, ou devolucao para o agent tecnico correto depois do diagnostico
+- entrada valida: task paralela de infraestrutura, diagnostico, incidente, manutencao, observabilidade, capacidade ou confirmacao de estado real
+- a task de `Sysadmin` deve existir em paralelo a uma tarefa-mãe quando o bloqueio nascer de outra trilha tecnica
+- ao concluir, `Sysadmin` troca a task paralela para `agent:security` e comenta na tarefa-mãe que o impedimento foi resolvido ou diagnosticado
+- `Sysadmin` nao substitui a tarefa-mãe nem absorve o fluxo funcional principal
 
 ## Fontes principais
 

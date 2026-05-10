@@ -1,12 +1,44 @@
-name: "[Disabled] QA Project Runner"
+name: QA Project Runner
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   qa-runner:
-    if: ${{ false }}
     runs-on: ubuntu-latest
-
     steps:
-      - run: echo "Disabled. QA execution now belongs to peer agents in ChatGPT."
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Run QA project review
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          QA_PROJECT_ORG: ControleOnline
+          QA_PROJECT_NUMBER: 1
+          QA_DRY_RUN: false
+          QA_MERGE_TARGETS: all
+          QA_OUTPUT_DIR: ./.qa-output
+        run: node src/qa-runner.js
+
+      - name: Upload QA snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-project-runner
+          path: ./.qa-output/qa-project-review.json
+          if-no-files-found: ignore

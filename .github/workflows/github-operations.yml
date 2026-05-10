@@ -1,0 +1,54 @@
+name: GitHub Operations Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      operations_json:
+        description: JSON com dry_run e operations[]
+        required: false
+        type: string
+      dry_run:
+        description: Forca dry_run quando true
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  github-operations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Run GitHub operations
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_OPS_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          OPERATIONS_JSON: ${{ github.event.inputs.operations_json || '' }}
+          GITHUB_OPS_ALLOWED_LOGINS: luizkim,github-copilot[bot],copilot-swe-agent,copilot
+        run: node automate/scripts/github-operations.mjs
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-operations
+          path: /tmp/github-operations.json
+          if-no-files-found: ignore

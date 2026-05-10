@@ -1,31 +1,45 @@
-# GitHub Operations Runner
+# GitHub Manager Runner
 
 ## Objetivo
 
-Fornecer uma trilha oficial, executada dentro do proprio GitHub Actions, para mutacoes que os agents do ChatGPT precisem fazer quando o runtime local nao tiver egress confiavel para `api.github.com` ou quando a mutacao precisar rodar com o token e as permissoes do runner.
+Fornecer um unico runner oficial, executado dentro do proprio GitHub Actions, para manutencao gerencial e mutacoes autorizadas no GitHub.
 
-## Casos de uso
+## Papel
 
-Use este runner para:
+Esse runner tem papel de gerente operacional no GitHub.
 
-- mover task entre colunas do ProjectV2
-- publicar comentarios em issues ou PRs
-- trocar labels
-- adicionar ou remover assignees
-- publicar review em PR
-- executar chamadas REST ou GraphQL especificas do GitHub de forma rastreavel
+Ele:
+
+- corrige coluna errada no ProjectV2
+- remove labels `agent:*` incorretas ou residuais
+- limpa assignees tecnicos quando eles nao fazem parte do fluxo oficial
+- executa manutencoes gerais de issue e PR
+- recebe comandos remotos de outros agents com mais permissao de escrita
+
+## Auditoria automatica
+
+Quando executado por `schedule` ou por `workflow_dispatch` sem `operations_json`, o runner entra em modo de auditoria.
+
+Nesse modo ele:
+
+- procura tasks em `Work` ou `Working`
+- verifica evidencias de aprovacao de `Security` e `Q.A.`
+- move para `In Review` a task que ficou presa na coluna errada
+- remove labels operacionais residuais
+- pode remover assignees tecnicos residuais
 
 ## Disparos suportados
 
-- `workflow_dispatch` com JSON explicito de operacoes
-- `issue_comment` no proprio repositorio `agents-mcp`, usando o comando `/github-ops`
+- `schedule`
+- `workflow_dispatch`
+- `issue_comment` no proprio repositorio `agents-mcp`, usando `/github-manager` ou `/github-ops`
 
 ## Formato do comando por comentario
 
 Exemplo:
 
 ```text
-/github-ops
+/github-manager
 ```json
 {
   "dry_run": false,
@@ -43,7 +57,13 @@ Exemplo:
 ```
 ```
 
+Sem JSON, o comentario-comando apenas dispara a auditoria gerencial.
+
 ## Operacoes suportadas
+
+### `manager_audit`
+
+Executa a mesma auditoria gerencial do agendamento.
 
 ### `project_status`
 
@@ -116,9 +136,9 @@ Campos aceitos:
 
 - o runner so executa comentario-comando de logins permitidos
 - o token preferencial e `GH_TOKEN`; `GITHUB_TOKEN` fica como fallback
-- `dry_run` deve ser usado por padrao quando a operacao ainda estiver sendo validada
+- `dry_run` deve ser usado quando a operacao ainda estiver sendo validada
 - o output precisa deixar rastreavel o que foi pedido, o que foi executado e o que falhou
 
 ## Relacao com os agents
 
-Quando um agent do ChatGPT nao conseguir concluir uma mutacao do GitHub diretamente deste runtime, ele deve preferir esta trilha oficial em vez de fingir mudanca de estado, coluna ou ownership.
+Quando um agent do ChatGPT nao conseguir concluir uma mutacao do GitHub diretamente deste runtime, ele deve preferir este runner oficial em vez de fingir mudanca de coluna, label, ownership ou review.

@@ -1,12 +1,47 @@
-name: "[Disabled] Agent Flow Sync"
+name: Agent Flow Sync
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   agent-flow-sync:
-    if: ${{ false }}
     runs-on: ubuntu-latest
-
     steps:
-      - run: echo "Disabled. Agent flow sync now belongs to peer agents in ChatGPT."
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Run agent flow sync
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          FLOW_PROJECT_ORG: ControleOnline
+          FLOW_PROJECT_NUMBER: 1
+          FLOW_DRY_RUN: false
+          FLOW_WORK_STATUSES: Work,Working
+          FLOW_DEPLOY_STATUSES: Deploy
+          FLOW_IN_REVIEW_STATUSES: In Review
+          FLOW_DONE_STATUSES: Done
+          FLOW_OUTPUT_DIR: ./.flow-output
+        run: node src/agent-flow-sync-runner.js
+
+      - name: Upload flow sync snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-flow-sync
+          path: ./.flow-output/agent-flow-sync.json
+          if-no-files-found: ignore

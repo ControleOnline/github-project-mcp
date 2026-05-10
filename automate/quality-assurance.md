@@ -11,10 +11,10 @@ Esta logica cobre:
 - identificacao de tarefa elegivel para o agent `Quality Assurance`
 - rastreio entre issue, PR, commits, checks e arquivos alterados
 - validacao de conformidade com o `AGENTS.md` aplicavel
-- decisao entre `Developer`, `Security` e `DevOps`
+- decisao entre `Developer`, `Security` e `In Review`
 - aprovacao ou reprovação de PR
-- repasse da task para o proximo agent responsavel
-- preparacao da task para promocao tecnica em `DevOps`
+- repasse da task para o proximo estado correto
+- preparacao da task para verificacao humana final
 
 ## Fontes de verdade
 
@@ -81,7 +81,7 @@ Nessa situacao:
 
 Use `Developer` quando houver qualquer uma destas condicoes:
 
-- reprovação funcional
+- reprovacao funcional
 - desvio tecnico
 - desvio de conformidade com `AGENTS.md`
 - falta de teste relevante
@@ -108,27 +108,28 @@ Ao encaminhar:
 - comentar objetivamente que a validacao de seguranca e obrigatoria
 - repassar a task para `Security`
 
-### Mover para `DevOps`
+### Mover para `In Review`
 
-Use `DevOps` apenas quando:
+Use `In Review` apenas quando:
 
 - a issue estiver atendida
 - a conformidade com `AGENTS.md` estiver validada
 - os testes e checks relevantes estiverem aceitaveis
 - a seguranca estiver concluida quando obrigatoria
-- houver trilha segura para promocao tecnica em `staging`
+- a entrega estiver pronta para verificacao humana final
 
 Ao aprovar:
 
 - aprovar o PR correspondente
 - comentar a aprovacao com rastreabilidade
-- repassar a task para `DevOps`
+- mover a task para `In Review`
+- remover labels `agent:*` residuais quando isso fizer parte do fluxo final dessa etapa
 
 ## Regra de review de PR
 
 Quando houver PR ligado a task:
 
-- aprovar o PR apenas quando a decisao final for `DevOps`
+- aprovar o PR apenas quando a decisao final for `In Review`
 - solicitar changes quando a decisao final for `Developer`
 - nao deixar PR sem decisao quando a revisao de QA ja tiver sido concluida
 
@@ -140,7 +141,7 @@ Comentarios de QA devem sempre informar:
 - o impacto objetivo
 - o que falta para seguir
 - a decisao tomada
-- o proximo agent responsavel da task
+- o proximo estado correto da task
 
 ## Regras de automacao
 
@@ -161,14 +162,14 @@ Sugestao de implementacao complementar:
 - `automate/quality-assurance.md`: politica e regras
 - `automate/project-status.md`: roteamento de agents e transicoes
 - `automate/pull-request-review.md`: criterios de approve ou request changes
-- `automate/staging-merge.md`: regras de merge e composicao cross-repo para `DevOps`
+- `automate/staging-merge.md`: regras de composicao cross-repo quando houver promocao posterior
 - `automate/scripts/qa-project-review.mjs`: leitura oficial de tarefas associadas a `Quality Assurance`
 - `automate/workflows/qa-project-review.yml`: workflow base para GitHub Actions
 
 ## Token padrao da automacao
 
-A automacao deve usar credenciais validas do GitHub App ou um token ja injetado em `GITHUB_TOKEN`/`GH_TOKEN` para GraphQL, reviews, comentarios e repasse do agent responsavel.
+A automacao deve usar credenciais validas do GitHub App ou um token ja injetado em `GITHUB_TOKEN`/`GH_TOKEN` para GraphQL, reviews, comentarios e mudanca de coluna.
 
 ## Branches alvo desta rodada
 
-Quando houver promocao operacional por merge, esta rodada deve considerar todos os branches operacionais quando `QA_MERGE_TARGETS=all`.
+Quando houver composicao operacional posterior, esta rodada pode considerar todos os branches operacionais quando `QA_MERGE_TARGETS=all`, mas sem transformar `Q.A.` em etapa de deploy.

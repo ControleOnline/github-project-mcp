@@ -1,12 +1,47 @@
-name: "[Disabled] Security Project Runner"
+name: Security Project Runner
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   security-runner:
-    if: ${{ false }}
     runs-on: ubuntu-latest
-
     steps:
-      - run: echo "Disabled. Security execution now belongs to peer agents in ChatGPT."
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Run security project review
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          SECURITY_PROJECT_ORG: ControleOnline
+          SECURITY_PROJECT_NUMBER: 1
+          SECURITY_DRY_RUN: false
+          SECURITY_OUTPUT_DIR: ./.security-output
+          SECURITY_ANALYST_LOGINS: ''
+          SECURITY_USE_COPILOT: true
+          SECURITY_COPILOT_BASE_REF: master
+          SECURITY_COPILOT_MODEL: ''
+        run: node src/security-runner.js
+
+      - name: Upload security snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-project-runner
+          path: ./.security-output/security-project-review.json
+          if-no-files-found: ignore

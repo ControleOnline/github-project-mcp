@@ -1,19 +1,19 @@
 # Runner Skills
 
-Este arquivo passa a mapear um unico runner oficial para execucao remota no GitHub.
+Este arquivo mapeia o modelo atual de execucao do ecossistema sem misturar o papel dos agents pares no ChatGPT com o papel do runner gerencial no GitHub.
 
 ## Estado atual
 
-O workflow oficial do ecossistema agora e:
+Hoje existem duas trilhas oficiais e complementares:
 
-- `.github/workflows/github-operations.yml`
+- os agents pares no ChatGPT sao o canal oficial para execucao normal por papel, investigacao, correcao de codigo, revisao tecnica e handoff operacional;
+- o workflow `.github/workflows/github-operations.yml` e o canal oficial para mutacoes remotas no GitHub e manutencao recorrente dentro do proprio GitHub.
 
 Com isso:
 
-- a automacao recorrente de coluna, labels e manutencao do ProjectV2 acontece em um unico runner gerencial
-- comandos remotos de mutacao no GitHub tambem passam pelo mesmo runner
-- os demais workflows antigos deixam de ser a trilha oficial
-- a logica real fica em `automate/scripts/github-operations.mjs`
+- `Developer`, `Security`, `Quality Assurance`, `DevOps` e `CTO` continuam tendo comportamento real definido pelos entry points em `src/`, wrappers em `automate/agents/` e scripts em `automate/scripts/`;
+- o `GitHub Manager Runner` concentra auditoria gerencial, correcoes de coluna, labels, assignees, comentarios, reviews e outras mutacoes remotas quando a sessao local nao deve fingir escrita no GitHub;
+- os workflows antigos por papel deixam de ser a trilha oficial de execucao recorrente, mas continuam como referencia historica e ponto explicito de desligamento do canal anterior.
 
 ## GitHub Manager Runner
 
@@ -30,6 +30,21 @@ Responsabilidades de referencia:
 - executar mutacoes REST ou GraphQL autorizadas por comando
 - servir como runner com mais acesso para manutencao geral no GitHub
 
+## Runners por papel
+
+Os entry points de papel continuam sendo a referencia de comportamento do ecossistema:
+
+- `src/developer-runner.js`
+- `src/security-runner.js`
+- `src/qa-runner.js`
+- `src/devops-runner.js`
+- `src/cto-runner.js`
+- `src/agent-dispatch-runner.js`
+- `automate/scripts/agent-project-dispatch.mjs`
+- `automate/scripts/cto-project-supervisor.mjs`
+
+Quando a duvida envolver ownership, fila, selecao por labels/coluna ou leitura operacional do papel, use esses entry points e scripts junto com `skills/shared/README.md` e `automate/agents/runner-map.md`.
+
 ## Legado
 
-Os workflows por papel e os sincronizadores antigos deixam de ser runners oficiais. Quando ainda existirem scripts ou wrappers historicos no repositorio, trate-os apenas como referencia legada ate serem removidos ou absorvidos pelo runner gerencial.
+Os workflows por papel e os sincronizadores antigos nao sao mais a trilha oficial de execucao recorrente. Quando ainda existirem wrappers ou scripts historicos no repositorio, trate-os como referencia legada ate remocao ou consolidacao completa no modelo atual.

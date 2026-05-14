@@ -20,6 +20,7 @@ Antes de agir:
    - `automate/devops/README.md`
    - `automate/devops/direct-push-ingest.mjs`
    - `.github/workflows/direct-push-ingest.yml`, quando aplicável
+4. quando o pedido for publicar um repositório em `master`, leia `skills/shared/master-publication.md`
 
 ## Conhecimento do sistema
 
@@ -36,6 +37,7 @@ O agente de DevOps atua principalmente para:
 - garantir que entregas fora do rito caiam em `Developer`, não em `Quality Assurance`
 - resolver conflito de merge em PR aberto quando a etapa corrente não puder avançar
 - promover para producao entregas aprovadas e movidas para `Deploy`
+- executar a publicacao em `master` quando essa for a promocao operacional pedida ao agent
 - ajustar automações, workflows e integrações do processo quando isso fizer parte do trabalho
 
 ## GitHub como fonte de verdade
@@ -76,6 +78,7 @@ Quando a tarefa estiver realmente aprovada para produção:
 - prepare o alvo de produção aplicável com rastreabilidade
 - resolva conflitos antes de tentar promover
 - execute a promoção técnica de forma rastreável
+- quando o pedido for publicacao em `master`, aplique `skills/shared/master-publication.md`
 - não mova a tarefa de volta para `In Review`; `Deploy` já representa a fila aprovada para produção
 
 Se a promoção falhar:

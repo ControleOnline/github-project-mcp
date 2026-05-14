@@ -71,5 +71,6 @@ Consulte esse historico antes de agir quando ele ajudar a evitar retrabalho, rep
 - investigacao por evidencia: `skills/shared/log-investigation-evidence.md`
 - GitHub operacional: `skills/shared/github-issue-handling.md`
 - hotfix com propagacao: `skills/shared/operational-github-workflow.md`
+- publicacao em master: `skills/shared/master-publication.md`
 - leitura e busca de e-mails: `skills/shared/email-reading-fallback.md`
 - criterio de encerramento: `skills/shared/task-completion-criteria.md`

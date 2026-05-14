@@ -32,6 +32,7 @@ Com isso:
 - runner comum: `src/agent-dispatch-runner.js`
 - wrapper do papel: `automate/agents/qa/dispatch.mjs`
 - logica compartilhada final: `automate/scripts/agent-project-dispatch.mjs`
+- aprovacao tecnica complementar: registra `approved:qa` para handoff posterior ao CTO
 
 ### Security
 
@@ -40,6 +41,7 @@ Com isso:
 - runner comum: `src/agent-dispatch-runner.js`
 - wrapper do papel: `automate/agents/security/dispatch.mjs`
 - logica compartilhada final: `automate/scripts/agent-project-dispatch.mjs`
+- aprovacao tecnica complementar: registra `approved:security` para handoff posterior ao CTO
 
 ### DevOps
 
@@ -53,7 +55,9 @@ Com isso:
 
 - workflow desativado: `.github/workflows/cto-runner.yml`
 - entry point de runtime: `src/cto-runner.js`
-- logica final: `automate/scripts/cto-project-supervisor.mjs`
+- logica final de supervisao: `automate/scripts/cto-project-supervisor.mjs`
+- logica final de promocao para `staging`: `automate/scripts/cto-staging-promotion.mjs`
+- responsabilidade adicional: quando `approved:security` e `approved:qa` coexistirem, aceitar o PR vinculado em `staging` e mover a task para `Done`
 
 ### GitHub Manager
 

@@ -11,10 +11,15 @@ Hoje existem duas trilhas oficiais e complementares:
 
 Com isso:
 
-- `Developer`, `Security`, `Quality Assurance`, `DevOps` e `CTO` continuam tendo comportamento real definido pelos entry points em `src/` e scripts em `automate/scripts/`;
-- `Developer`, `Security`, `Quality Assurance` e `CTO` seguem com runners separados e independentes;
-- `Security` e `Quality Assurance` agora atuam sobre PRs do `Developer`, registrando labels de aceite ou recusa na propria PR;
-- somente `CTO` aprova PR no GitHub e move a task para `In Review`.
+- `Developer`, `Security Review`, `Quality Assurance`, `Technical Lead`, `DevOps` e `CTO` continuam tendo comportamento real definido pelos entry points em `src/` e scripts em `automate/scripts/`;
+- `Developer`, `Security Review`, `Quality Assurance`, `Technical Lead` e `CTO` seguem com runners separados e independentes;
+- `Security Review` e `Quality Assurance` atuam sobre PRs do `Developer`, registrando labels de aprovacao ou recusa na propria issue e na propria PR;
+- os labels canonicos sao `approved:qa`, `rejected:qa`, `approved:security` e `rejected:security`;
+- qualquer tarefa, aberta ou finalizada, que esteja vinculada a PR e nao possua os labels de QA e Security Review deve voltar para a fila desses runners;
+- labels de aprovacao devem permanecer quando a tarefa for finalizada, para auditoria e conferencia futura;
+- quando uma tarefa voltar ao `Developer`, todas as aprovacoes anteriores devem ser removidas;
+- somente `Technical Lead` aprova formalmente a PR no GitHub, mescla em `staging`, marca a task como concluida e move o item do projeto para `In Review`;
+- `CTO` permanece responsavel por supervisao estrutural do ecossistema, governanca dos agents e correcao do modelo operacional, sem executar a finalizacao normal de PR.
 
 ## GitHub Manager Runner
 
@@ -27,7 +32,8 @@ Com isso:
 - `src/developer-runner.js` -> `automate/scripts/developer-pr-dispatch.mjs`
 - `src/security-runner.js` -> `automate/scripts/pr-label-review-runner.mjs` com `PR_REVIEW_ROLE=security`
 - `src/qa-runner.js` -> `automate/scripts/pr-label-review-runner.mjs` com `PR_REVIEW_ROLE=qa`
-- `src/cto-runner.js` -> `automate/scripts/cto-project-supervisor.mjs` e `automate/scripts/cto-pr-finalizer.mjs`
+- `src/technical-lead-runner.js` -> `automate/scripts/technical-lead-pr-finalizer.mjs`
+- `src/cto-runner.js` -> `automate/scripts/cto-project-supervisor.mjs`
 - `src/devops-runner.js` permanece como trilha separada para a fila propria de deploy
 
 ## Regra de leitura

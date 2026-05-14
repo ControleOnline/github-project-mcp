@@ -1,1 +1,6 @@
-import { getAuthToken } from './github-app-auth.js'; process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || await getAuthToken(); process.env.AGENT_DISPATCH_ROLE = process.env.AGENT_DISPATCH_ROLE || 'security'; await import('./agent-dispatch-runner.js');
+import { getAuthToken } from './github-app-auth.js';
+
+process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || await getAuthToken();
+process.env.PR_REVIEW_ROLE = process.env.PR_REVIEW_ROLE || 'security';
+
+await import('../automate/scripts/pr-label-review-runner.mjs');

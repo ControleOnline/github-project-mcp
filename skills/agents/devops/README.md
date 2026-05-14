@@ -8,6 +8,7 @@
 
 - `skills/shared/agent-execution-baseline.md`
 - `skills/shared/agent-handoff-governance.md`
+- `skills/shared/master-publication.md`
 
 ## Ownership
 
@@ -23,3 +24,4 @@
 - `automation/devops/base.md`
 - `automate/devops/README.md`
 - `automate/staging-merge.md`
+- `skills/shared/master-publication.md`

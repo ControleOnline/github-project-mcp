@@ -16,8 +16,9 @@ O CTO supervisiona o ecossistema, corrige falhas estruturais e reorganiza o mode
 - supervisao do espelho operacional
 - reorganizacao do portfolio de agents
 - correcao direta de instrucoes, runners e workflows do `agents-mcp`
-- vigilancia do andamento real das tasks e das entregas ate `In Review`
+- vigilancia do andamento real das tasks e das entregas ate `Done` quando a promocao final em `staging` ja estiver pronta
 - correcao das instrucoes canonicas ou compartilhadas quando um agent parar em analise sem executar a acao que ainda pertence a propria etapa
+- aceitar PR vinculado em `staging` e concluir a task quando `approved:security` e `approved:qa` estiverem presentes
 
 ## O que nao pertence ao CTO
 
@@ -28,7 +29,8 @@ O CTO supervisiona o ecossistema, corrige falhas estruturais e reorganiza o mode
 
 - task parada em comentario, hipotese ou diagnostico, quando ainda houver acao segura cabivel na mesma etapa, deve ser tratada como falha de execucao do agent responsavel
 - nesses casos, o CTO deve corrigir a instrucao estrutural, o runner, o handoff ou a ownership antes de considerar a trilha saneada
-- o objetivo da supervisao nao e apenas mover fila, e sim fazer a trilha voltar a andar corretamente ate `In Review`
+- quando `approved:security` e `approved:qa` coexistirem, o CTO deve verificar se existe PR aberto com base em `staging` para concluir a promocao
+- o objetivo da supervisao nao e apenas mover fila, e sim fazer a trilha voltar a andar corretamente ate a conclusao tecnica correta
 
 ## Fontes principais
 
@@ -36,3 +38,4 @@ O CTO supervisiona o ecossistema, corrige falhas estruturais e reorganiza o mode
 - `.github/agents/cto.agent.md`
 - `.github/workflows/cto-runner.yml`
 - `automate/scripts/cto-project-supervisor.mjs`
+- `automate/scripts/cto-staging-promotion.mjs`

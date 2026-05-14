@@ -64,6 +64,8 @@ Labels validos:
 - `agent:qa`
 - `agent:devops`
 - `agent:sysadmin`
+- `approved:security`
+- `approved:qa`
 
 Regras obrigatorias:
 
@@ -72,11 +74,13 @@ Regras obrigatorias:
 - todos os agents devem descobrir trabalho lendo a tag esperada para sua etapa e a coluna correta da issue, nunca assignees
 - agentes nao fecham tasks; so humanos podem mover uma issue para `closed`
 - para os agents, conclusao operacional significa avancar a task para a proxima coluna ou trocar a tag da proxima etapa, sem usar `open` ou `closed` como gate de trabalho
-- o fluxo tecnico padrao e sequencial: `agent:developer` -> `agent:security` -> `agent:qa`
+- o fluxo tecnico padrao continua sequencial: `agent:developer` -> `agent:security` -> `agent:qa`
 - task em `Work` ou `Working` sem `agent:*` entra por `agent:developer`
 - `Developer` pega tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, executa o trabalho e troca a tag para `agent:security`
-- `Security` pega apenas tasks com `agent:security` em `Work` ou `Working`, revisa e troca a tag para `agent:qa` ou devolve para `agent:developer` quando houver correção necessária
-- `Quality Assurance` pega apenas tasks com `agent:qa` em `Work` ou `Working`, valida a trilha completa e decide entre mover para `In Review` ou devolver para `agent:security` ou `agent:developer`
+- `Security` pega apenas tasks com `agent:security` em `Work` ou `Working`, revisa, registra `approved:security` quando aprovar e troca a tag para `agent:qa`, ou devolve para `agent:developer` quando houver correcao necessaria
+- `Quality Assurance` pega apenas tasks com `agent:qa` em `Work` ou `Working`, valida a trilha completa, registra `approved:qa` quando aprovar e devolve para `agent:security` ou `agent:developer` quando necessario
+- quando `approved:security` e `approved:qa` estiverem presentes e houver PR vinculado com base em `staging`, o runner separado de `CTO` pode aceitar esse PR em `staging` e mover a task para `Done`
+- quando a aprovacao tecnica ainda exigir verificacao humana adicional, `Quality Assurance` continua podendo mover para `In Review`
 - qualquer etapa pode abrir uma task paralela de infraestrutura com tag `agent:sysadmin` em `Work`, sempre separada da tarefa-mãe e com referência explícita para ela
 - `Sysadmin` verifica apenas tasks com `agent:sysadmin` em `Work` ou `Working`, resolve ou diagnostica o impedimento e, ao concluir, troca a task paralela para `agent:security` e comenta na tarefa-mãe que o impedimento foi resolvido
 - `DevOps` verifica apenas tasks com `agent:devops` na coluna `Deploy`
@@ -88,3 +92,5 @@ Regras obrigatorias:
 O CTO supervisiona o ecossistema e corrige diretamente o `agents-mcp` quando houver falha estrutural de instrucao, runner, workflow, ownership ou automacao.
 
 O CTO nao deve substituir a execucao normal de `Developer`, `Security`, `Quality Assurance`, `DevOps` ou `Sysadmin` quando a trilha ja pertence claramente a um desses agents.
+
+Quando a trilha tecnica ja trouxe `approved:security` e `approved:qa`, o runner dedicado de `CTO` pode finalizar a promocao em `staging` e marcar a task como concluida em `Done` sem absorver as etapas anteriores.

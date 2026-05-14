@@ -29,15 +29,9 @@ Distribuicao obrigatoria:
 - `agents/agent/*/agent.md` devem ficar enxutos e conter apenas ponto de entrada, papel, fronteiras e referencias obrigatorias
 - wrappers locais em `.github/agents/*.agent.md` devem ser finos e apontar para a fonte canonica e para o contexto local minimo
 
-Regras de deduplicacao:
-
-- se uma regra aparecer em mais de um agent ou wrapper, extraia para uma skill compartilhada e substitua a duplicacao por referencia
-- nao mantenha biblioteca operacional paralela fora dessa estrutura
-- nao replique instrucoes centrais em prompts locais quando o repositorio central puder ser referenciado
-
 ## Canal de execucao
 
-Os runners do GitHub deste repositorio estao desativados como canal operacional.
+Os runners do GitHub deste repositorio estao desativados como canal operacional principal.
 
 A execucao por papel deve acontecer pelos agentes pares no ChatGPT.
 
@@ -47,45 +41,34 @@ Com isso:
 - nenhuma rotina por `push` ou `schedule` deve ser reativada sem decisao estrutural explicita
 - ownership, handoff e criterios de execucao continuam definidos pelas skills centrais e pelos agents canonicos
 
-## Regra de nomenclatura
-
-Nao use prefixo `cto-` em materiais compartilhados. Reserve referencias explicitas a `cto` apenas para papeis, runners e automacoes exclusivas do proprio CTO.
-
 ## GitHub
 
-Ao consultar ou operar no GitHub, os agents podem usar qualquer busca, API, listagem, ferramenta, mutacao ou superficie que estiver disponivel na sessao. Nao existe restricao artificial de consulta no GitHub dentro do `agents-mcp`; a escolha do caminho deve seguir apenas o que melhor produz a evidência correta para a tarefa atual.
+Ao consultar ou operar no GitHub, os agents podem usar qualquer busca, API, listagem, ferramenta, mutacao ou superficie que estiver disponivel na sessao. Nao existe restricao artificial de consulta no GitHub dentro do `agents-mcp`; a escolha do caminho deve seguir apenas o que melhor produz a evidencia correta para a tarefa atual.
 
 ## Ownership operacional
 
-Labels validos:
+Labels oficiais de review em PR:
 
-- `agent:developer`
-- `agent:security`
-- `agent:qa`
-- `agent:devops`
-- `agent:sysadmin`
-- `approved:security`
-- `approved:qa`
+- `qa:accepted`
+- `qa:rejected`
+- `security:accepted`
+- `security:rejected`
 
 Regras obrigatorias:
 
 - nenhuma task deve ser atribuida a pessoas, bots ou fallbacks tecnicos como mecanismo de captura de trabalho
 - assignees do GitHub nao participam do roteamento operacional e devem ser removidos quando aparecerem em tasks da fila
-- todos os agents devem descobrir trabalho lendo a tag esperada para sua etapa e a coluna correta da issue, nunca assignees
-- agentes nao fecham tasks; so humanos podem mover uma issue para `closed`
-- para os agents, conclusao operacional significa avancar a task para a proxima coluna ou trocar a tag da proxima etapa, sem usar `open` ou `closed` como gate de trabalho
-- o fluxo tecnico padrao continua sequencial: `agent:developer` -> `agent:security` -> `agent:qa`
-- task em `Work` ou `Working` sem `agent:*` entra por `agent:developer`
-- `Developer` pega tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, executa o trabalho e troca a tag para `agent:security`
-- `Security` pega apenas tasks com `agent:security` em `Work` ou `Working`, revisa, registra `approved:security` quando aprovar e troca a tag para `agent:qa`, ou devolve para `agent:developer` quando houver correcao necessaria
-- `Quality Assurance` pega apenas tasks com `agent:qa` em `Work` ou `Working`, valida a trilha completa, registra `approved:qa` quando aprovar e devolve para `agent:security` ou `agent:developer` quando necessario
-- quando `approved:security` e `approved:qa` estiverem presentes e houver PR vinculado com base em `staging`, o runner separado de `CTO` pode aceitar esse PR em `staging` e mover a task para `Done`
-- quando a aprovacao tecnica ainda exigir verificacao humana adicional, `Quality Assurance` continua podendo mover para `In Review`
-- qualquer etapa pode abrir uma task paralela de infraestrutura com tag `agent:sysadmin` em `Work`, sempre separada da tarefa-mãe e com referência explícita para ela
-- `Sysadmin` verifica apenas tasks com `agent:sysadmin` em `Work` ou `Working`, resolve ou diagnostica o impedimento e, ao concluir, troca a task paralela para `agent:security` e comenta na tarefa-mãe que o impedimento foi resolvido
-- `DevOps` verifica apenas tasks com `agent:devops` na coluna `Deploy`
-- agents documentais fora do nucleo, como `Documentor`, verificam apenas tasks na coluna `Done`
-- nenhuma etapa deve capturar task com tag aleatoria fora do fluxo esperado do proprio papel
+- `Developer` seleciona trabalho apenas quando a issue ainda esta aberta, foi criada por membro da equipe e nao existe PR aberto pendente de decisao por `QA` e `Security`
+- coluna do projeto, assignee e labels de etapa nao participam mais da leitura do backlog de `Developer`, `QA` e `Security`
+- `Developer` so pode trabalhar na propria branch da tarefa, contendo o numero da issue, e so pode abrir PR para `staging`
+- `Developer` nao deve mexer diretamente em `master`, `main`, `staging` ou qualquer outra branch fora da branch da tarefa
+- `Security` analisa PR aberta do developer e registra apenas `security:accepted` ou `security:rejected` na propria PR
+- `QA` analisa PR aberta do developer e registra apenas `qa:accepted` ou `qa:rejected` na propria PR
+- quando `Security` ou `QA` recusarem uma PR, o runner deve comentar de forma direta e explicativa na issue para orientar a proxima execucao do `Developer`
+- `Security` e `QA` nao aprovam PR com review do GitHub e nao finalizam task
+- somente o runner de `CTO` pode aprovar a PR, promover para `staging` e mover a task para `In Review` no ProjectV2
+- nenhum outro agent ou runner pode finalizar a tarefa ou aprovar a PR
+- agents nao fecham tasks; so humanos podem mover uma issue para `closed`
 
 ## Fronteira do CTO
 
@@ -93,4 +76,4 @@ O CTO supervisiona o ecossistema e corrige diretamente o `agents-mcp` quando hou
 
 O CTO nao deve substituir a execucao normal de `Developer`, `Security`, `Quality Assurance`, `DevOps` ou `Sysadmin` quando a trilha ja pertence claramente a um desses agents.
 
-Quando a trilha tecnica ja trouxe `approved:security` e `approved:qa`, o runner dedicado de `CTO` pode finalizar a promocao em `staging` e marcar a task como concluida em `Done` sem absorver as etapas anteriores.
+Quando uma PR aberta para `staging` trouxer simultaneamente `qa:accepted` e `security:accepted`, somente o runner dedicado de `CTO` pode aprovar essa PR e mover a task correspondente para `In Review` dentro do projeto.

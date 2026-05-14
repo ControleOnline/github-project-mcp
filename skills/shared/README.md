@@ -24,12 +24,6 @@ Use esta ordem para evitar duplicacao:
 - mantenha `agents/agent/*/agent.md` apenas com papel, fronteira e referencias obrigatorias
 - mantenha `.github/agents/*.agent.md` como wrappers finos
 
-Skills estruturais compartilhadas:
-
-- `agent-execution-baseline.md`
-- `agent-handoff-governance.md`
-- `agent-wrapper-contract.md`
-
 ## Priority Projects Policy
 
 Use esta regra para priorizacao:
@@ -74,42 +68,26 @@ Essa trilha existe para:
 - executar mutacoes REST ou GraphQL autorizadas
 - corrigir inconsistencias operacionais de coluna e labels
 
-## Runner Preference
-
-Quando a etapa depender de mutacao remota no GitHub ou continuidade fora deste runtime local:
-
-- prefira o `GitHub Manager Runner`
-- trate a logica em `automate/scripts/github-operations.mjs` como fonte de comportamento real
-- nao reintroduza runners paralelos por papel sem necessidade estrutural clara
-
 ## Issue Flow Governance
 
 Valide sempre:
 
-- a tag `agent:*` esperada para a etapa atual
-- as tags auxiliares `approved:security` e `approved:qa` quando a trilha estiver pronta para fechamento tecnico
-- a coluna real da issue
-- PR vinculado
-- conflito de merge
-- checks
-- comentario novo apenas quando houver delta material
+- se a issue continua aberta
+- se a issue foi criada por membro da equipe
+- se existe PR aberta do developer para `staging`
+- se a PR ja recebeu `qa:accepted` ou `qa:rejected`
+- se a PR ja recebeu `security:accepted` ou `security:rejected`
+- se a PR esta pronta para a aprovacao exclusiva do `CTO`
 
 Regras centrais:
 
-- task em `Work` ou `Working` sem `agent:*` entra por `Developer`
-- nenhum agent pode usar assignee como mecanismo de captura, redispatch ou fallback
-- nenhum agent pode fechar task; fechamento em `closed` pertence apenas a humanos
-- para os agents, o estado operacional valido e definido por coluna e tags, nao por `open` ou `closed`
-- o fluxo padrao de tags e sequencial: `agent:developer` -> `agent:security` -> `agent:qa`
-- `Developer` le apenas tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, e ao concluir troca para `agent:security`
-- `Security` le apenas tasks com `agent:security` em `Work` ou `Working`, e ao concluir registra `approved:security`, troca para `agent:qa` ou devolve para `agent:developer`
-- `Quality Assurance` le apenas tasks com `agent:qa` em `Work` ou `Working`, e ao concluir registra `approved:qa`, devolve para `agent:security` ou `agent:developer`, ou move para `In Review` quando a validacao humana ainda for necessaria
-- o runner separado de `CTO` pode concluir a trilha quando `approved:security` e `approved:qa` coexistirem e houver PR vinculado com base em `staging`; nessa situacao ele aceita o PR para `staging` e move a task para `Done`
-- o runner gerencial pode continuar corrigindo para `In Review` task que ja tenha evidencias de aprovacao de `Security` e `Q.A.` mas tenha ficado na coluna errada
-- a passagem de `In Review` para `Deploy` continua pertencendo a revisao humana final, fora da etapa dos agents
-- `DevOps` le apenas tasks na coluna `Deploy` e coloca em producao o que foi aprovado ali
-- qualquer etapa pode abrir uma task paralela de infraestrutura com tag `agent:sysadmin` em `Work`, sempre separada da tarefa-mãe e com referência explícita para ela
-- `Sysadmin` le apenas tasks com `agent:sysadmin` em `Work` ou `Working`, resolve ou diagnostica o impedimento, depois troca a task paralela para `agent:security` e comenta na tarefa-mãe que o impedimento foi resolvido
-- agents documentais externos ao nucleo, como `Documentor`, leem apenas tasks na coluna `Done`
-- conflito de merge em PR aberto no mesmo repositorio desvia a trilha para `DevOps`
-- nenhuma etapa deve capturar task com tag fora do fluxo esperado do proprio papel
+- `Developer` le apenas issue aberta criada por membro da equipe sem PR pendente de decisao por `QA` e `Security`
+- `Developer` trabalha somente na propria branch da tarefa, contendo o numero da issue, e publica PR apenas para `staging`
+- `Security` e `QA` atuam sobre PRs do `Developer`, nao sobre coluna do projeto
+- `Security` so registra `security:accepted` ou `security:rejected` na PR correspondente
+- `QA` so registra `qa:accepted` ou `qa:rejected` na PR correspondente
+- quando houver recusa, o runner deve comentar a issue com orientacao direta para a proxima execucao do `Developer`
+- `Security` e `QA` nao aprovam PR por review do GitHub e nao finalizam task
+- somente o runner de `CTO` pode aprovar a PR, promover em `staging` e mover a task para `In Review`
+- nenhum agent fecha task; fechamento em `closed` continua pertencendo apenas a humanos
+- coluna do projeto nao entra no criterio de captura do backlog de `Developer`, `Security` e `QA`

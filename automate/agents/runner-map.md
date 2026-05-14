@@ -9,95 +9,54 @@ Hoje a execucao operacional oficial do ecossistema combina duas trilhas compleme
 - os agents pares no ChatGPT executam a trilha normal por papel, incluindo descoberta, implementacao, revisao tecnica e handoff;
 - o `GitHub Manager Runner` executa a trilha oficial de mutacoes remotas no GitHub e de manutencao recorrente dentro do proprio GitHub.
 
-Com isso:
-
-- os workflows em `.github/workflows/` por papel permanecem como trilha historica e ponto explicito de desligamento do canal antigo;
-- os entry points em `src/` e os scripts em `automate/` continuam sendo a referencia real de comportamento por papel;
-- o workflow `.github/workflows/github-operations.yml` continua sendo o canal oficial quando a etapa depender de coluna, label, comentario, review, assignee ou outra escrita remota no GitHub.
-
 ## Referencias por papel
 
 ### Developer
 
 - workflow desativado: `.github/workflows/developer-runner.yml`
 - entry point de runtime: `src/developer-runner.js`
-- runner comum: `src/agent-dispatch-runner.js`
-- wrapper do papel: `automate/agents/developer/dispatch.mjs`
-- logica compartilhada final: `automate/scripts/agent-project-dispatch.mjs`
+- logica final atual: `automate/scripts/developer-pr-dispatch.mjs`
+- criterio de captura: issue aberta de membro da equipe sem PR pendente de decisao por `QA` e `Security`
 
 ### Quality Assurance
 
 - workflow desativado: `.github/workflows/qa-runner.yml`
 - entry point de runtime: `src/qa-runner.js`
-- runner comum: `src/agent-dispatch-runner.js`
-- wrapper do papel: `automate/agents/qa/dispatch.mjs`
-- logica compartilhada final: `automate/scripts/agent-project-dispatch.mjs`
-- aprovacao tecnica complementar: registra `approved:qa` para handoff posterior ao CTO
+- logica final atual: `automate/scripts/pr-label-review-runner.mjs`
+- papel atual: registrar `qa:accepted` ou `qa:rejected` em PR do developer
 
 ### Security
 
 - workflow desativado: `.github/workflows/security-runner.yml`
 - entry point de runtime: `src/security-runner.js`
-- runner comum: `src/agent-dispatch-runner.js`
-- wrapper do papel: `automate/agents/security/dispatch.mjs`
-- logica compartilhada final: `automate/scripts/agent-project-dispatch.mjs`
-- aprovacao tecnica complementar: registra `approved:security` para handoff posterior ao CTO
-
-### DevOps
-
-- workflow desativado: `.github/workflows/devops-runner.yml`
-- entry point de runtime: `src/devops-runner.js`
-- runner comum: `src/agent-dispatch-runner.js`
-- papel resolvido pela variavel `AGENT_DISPATCH_ROLE=devops`
-- logica compartilhada final: `automate/scripts/agent-project-dispatch.mjs`
+- logica final atual: `automate/scripts/pr-label-review-runner.mjs`
+- papel atual: registrar `security:accepted` ou `security:rejected` em PR do developer
 
 ### CTO
 
 - workflow desativado: `.github/workflows/cto-runner.yml`
 - entry point de runtime: `src/cto-runner.js`
 - logica final de supervisao: `automate/scripts/cto-project-supervisor.mjs`
-- logica final de promocao para `staging`: `automate/scripts/cto-staging-promotion.mjs`
-- responsabilidade adicional: quando `approved:security` e `approved:qa` coexistirem, aceitar o PR vinculado em `staging` e mover a task para `Done`
+- logica final de aprovacao exclusiva: `automate/scripts/cto-pr-finalizer.mjs`
+- papel atual: aprovar PR pronta para `staging` e mover a task para `In Review`
+
+### DevOps
+
+- workflow desativado: `.github/workflows/devops-runner.yml`
+- entry point de runtime: `src/devops-runner.js`
+- papel atual: fila propria de deploy, sem aprovar PR de task do fluxo normal
 
 ### GitHub Manager
 
 - workflow ativo: `.github/workflows/github-operations.yml`
 - logica final: `automate/scripts/github-operations.mjs`
-- papel: manutencao gerencial, correcoes de coluna, limpeza de labels e mutacoes autorizadas no GitHub
-
-## Entradas legadas ou de compatibilidade
-
-Os arquivos abaixo continuam uteis como referencia historica, compatibilidade manual ou trilha de politica, mas nao representam a trilha principal de execucao recorrente:
-
-- `src/index.js`
-- `automate/scripts/qa-project-review.mjs`
-- `automate/scripts/security-project-review.mjs`
-
-Se houver divergencia entre arquivos legados, workflows desativados e a trilha atual, a leitura operacional correta deve priorizar:
-
-1. `skills/runners/README.md`
-2. `skills/shared/README.md`
-3. os entry points reais em `src/*-runner.js`
-4. os wrappers em `automate/agents/`, quando existirem
-5. a logica final em `automate/scripts/`
-6. o `GitHub Manager Runner` quando a etapa depender de mutacao remota no GitHub
+- papel: manutencao gerencial, correcoes de coluna, labels e mutacoes autorizadas no GitHub
 
 ## Regra de auditoria
 
 Ao revisar funcionamento, incidentes, ownership ou backlog do ecossistema:
 
 1. confirme primeiro qual runner e script realmente implementam o papel ou a mutacao exigida hoje
-2. trate `workflow_dispatch` nos YAMLs por papel apenas como trilha historica, salvo reativacao explicita e documentada
-3. so trate script legado como fonte principal quando ele ainda estiver no caminho real do runtime
-4. quando a issue estiver em `override manual ativo`, preserve essa leitura ate surgir delta tecnico verificavel no repositorio alvo
-5. quando houver PR com `Scrutinizer` em erro ou failure, sem `workflow_run` local observavel ou com run em `action_required`, leia isso primeiro como gate repo-local do repositorio alvo antes de reciclar a issue entre agents
-
-## Regra de interpretacao de gargalo
-
-Quando o bloqueio dominante estiver fora do nucleo `agents-mcp`, a sequencia correta de leitura e:
-
-1. verificar se existe PR ou composicao aberta no proprio repositorio consumidor
-2. verificar se o head atual publica check externo em erro ou failure
-3. verificar se existe `workflow_run` local observavel para o mesmo head
-4. se nao houver run local, ou se o run estiver em `action_required`, tratar a trilha como bloqueio repo-local material
-5. so depois disso decidir se o problema e do nucleo, do repositorio consumidor ou apenas do gate externo
+2. trate os workflows YAML por papel apenas como trilha historica, salvo reativacao explicita e documentada
+3. trate `agent-project-dispatch.mjs`, `qa-project-review.mjs` e `security-project-review.mjs` como legado quando nao forem o caminho real do entry point atual
+4. somente o runner de `CTO` pode aprovar PR e mover a task para `In Review`

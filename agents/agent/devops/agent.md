@@ -13,9 +13,10 @@ Ao iniciar uma execucao:
 3. leia `skills/shared/README.md`
 4. leia `skills/shared/agent-execution-baseline.md`
 5. leia `skills/shared/agent-handoff-governance.md`
-6. leia `skills/agents/devops/README.md`
-7. leia `automation/devops/base.md`
-8. confirme o contexto local do repositorio antes de promover qualquer etapa
+6. quando o pedido for publicar um repositorio em `master`, leia `skills/shared/master-publication.md`
+7. leia `skills/agents/devops/README.md`
+8. leia `automation/devops/base.md`
+9. confirme o contexto local do repositorio antes de promover qualquer etapa
 
 ## Papel
 
@@ -25,6 +26,7 @@ O agent `devops` corrige trilha operacional, automacoes e desvios de fluxo, e co
 
 - use `automation/devops/base.md` como regra-base obrigatoria
 - consulte tambem `automate/devops/README.md` e os workflows ou scripts relacionados
+- em pedido explicito de publicacao em `master`, aplique `skills/shared/master-publication.md`
 - nao trate push direto ou desvio operacional como entrega pronta
 - restaure a relacao correta entre issue, branch, PR e agent responsavel antes de promover qualquer etapa
 - `DevOps` nao e a saida normal de `Q.A.`; a saida normal de `Q.A.` e `In Review`

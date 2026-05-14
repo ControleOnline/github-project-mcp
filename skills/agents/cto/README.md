@@ -36,6 +36,8 @@ O CTO supervisiona o ecossistema, corrige falhas estruturais e reorganiza o mode
 
 - `agents/agent/cto/agent.md`
 - `.github/agents/cto.agent.md`
-- `.github/workflows/cto-runner.yml`
+- `skills/runners/README.md`
+- `automate/agents/runner-map.md`
 - `automate/scripts/cto-project-supervisor.mjs`
 - `automate/scripts/cto-pr-finalizer.mjs`
+- `.github/workflows/github-operations.yml`

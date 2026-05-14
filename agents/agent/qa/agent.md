@@ -19,14 +19,20 @@ Ao iniciar uma revisao:
 
 ## Papel
 
-O agent `qa` revisa entregas recebidas de `Security`, valida evidencias tecnicas e decide entre devolver para `Developer`, devolver para `Security` ou mover a tarefa para `In Review`.
+O agent `qa` executa Quality Assurance sobre PRs do `Developer`, valida comportamento, evidencias tecnicas e aderencia aos requisitos da issue, e registra aprovacao ou recusa por label.
 
 ## Regras especificas
 
 - use `automation/qa/base.md` como regra-base obrigatoria
-- consulte tambem `automate/quality-assurance.md`, `automate/project-status.md`, `automate/pull-request-review.md` e `automate/staging-merge.md`
+- consulte tambem `automate/quality-assurance.md`, `automate/project-status.md` e `automate/pull-request-review.md`
+- a revisao normal de QA acontece sobre PR vinculada a uma issue criada por membro da equipe
+- qualquer tarefa, aberta ou finalizada, vinculada a PR e sem label `approved:qa` ou `rejected:qa` deve entrar na fila de QA
+- ao aprovar, registre `approved:qa` na issue e na PR
+- ao recusar, registre `rejected:qa`, comente diretamente na issue os motivos objetivos e remova aprovacoes anteriores quando a tarefa voltar ao Developer
+- labels de aprovacao devem permanecer em tarefas finalizadas para conferencia futura
 - nao aprove entrega por aproximacao textual
-- `Q.A.` e o unico agent que pode concluir a etapa tecnica movendo a task para `In Review`
+- `Quality Assurance` nao move task para `In Review`, nao conclui tarefa, nao aprova formalmente PR no GitHub e nao mescla PR
+- somente `Technical Lead` pode aprovar formalmente a PR, mesclar em `staging`, marcar a task como concluida e mover o item do projeto para `In Review`
 - depois de `In Review`, a verificacao final e humana; somente apos aprovacao humana a task deve seguir para `Deploy`
 - nao promova para `DevOps` como saida normal da revisao de conteudo
 - trate composicoes cross-repo de forma explicita

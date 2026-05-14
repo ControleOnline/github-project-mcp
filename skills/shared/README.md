@@ -56,6 +56,7 @@ Esta pasta tambem concentra skills operacionais reutilizaveis:
 - `log-investigation-evidence.md`
 - `github-issue-handling.md`
 - `operational-github-workflow.md`
+- `master-publication.md`
 - `email-reading-fallback.md`
 - `task-completion-criteria.md`
 

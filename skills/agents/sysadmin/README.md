@@ -11,6 +11,7 @@
 - `skills/shared/operational-source-of-truth.md`
 - `skills/shared/log-investigation-evidence.md`
 - `skills/shared/github-issue-handling.md`
+- `skills/shared/master-publication.md`
 - `skills/shared/task-completion-criteria.md`
 
 ## Ownership
@@ -29,6 +30,7 @@
 - `skills/shared/operational-source-of-truth.md`
 - `skills/shared/log-investigation-evidence.md`
 - `skills/shared/github-issue-handling.md`
+- `skills/shared/master-publication.md`
 - `skills/shared/task-completion-criteria.md`
 
 ## Regras de atuacao

@@ -11,10 +11,10 @@ Hoje existem duas trilhas oficiais e complementares:
 
 Com isso:
 
-- `Developer`, `Security`, `Quality Assurance`, `DevOps` e `CTO` continuam tendo comportamento real definido pelos entry points em `src/`, wrappers em `automate/agents/` e scripts em `automate/scripts/`;
-- `Security`, `Quality Assurance` e `CTO` seguem com runners separados, cada um com seu proprio entry point em `src/`;
-- o `GitHub Manager Runner` concentra auditoria gerencial, correcoes de coluna, labels, assignees, comentarios, reviews e outras mutacoes remotas quando a sessao local nao deve fingir escrita no GitHub;
-- os workflows antigos por papel deixam de ser a trilha oficial de execucao recorrente, mas continuam como referencia historica e ponto explicito de desligamento do canal anterior.
+- `Developer`, `Security`, `Quality Assurance`, `DevOps` e `CTO` continuam tendo comportamento real definido pelos entry points em `src/` e scripts em `automate/scripts/`;
+- `Developer`, `Security`, `Quality Assurance` e `CTO` seguem com runners separados e independentes;
+- `Security` e `Quality Assurance` agora atuam sobre PRs do `Developer`, registrando labels de aceite ou recusa na propria PR;
+- somente `CTO` aprova PR no GitHub e move a task para `In Review`.
 
 ## GitHub Manager Runner
 
@@ -22,31 +22,18 @@ Com isso:
 - logica final: `automate/scripts/github-operations.mjs`
 - guia operacional: `automate/github-operations.md`
 
-Responsabilidades de referencia:
-
-- auditar tasks em `Work` ou `Working`
-- mover para `In Review` tasks aprovadas por `Security` e `Q.A.` que ficaram na coluna errada
-- remover labels `agent:*` residuais
-- limpar assignees tecnicos quando a governanca depender apenas de coluna e labels
-- executar mutacoes REST ou GraphQL autorizadas por comando
-- servir como runner com mais acesso para manutencao geral no GitHub
-
 ## Runners por papel
 
-Os entry points de papel continuam sendo a referencia de comportamento do ecossistema:
+- `src/developer-runner.js` -> `automate/scripts/developer-pr-dispatch.mjs`
+- `src/security-runner.js` -> `automate/scripts/pr-label-review-runner.mjs` com `PR_REVIEW_ROLE=security`
+- `src/qa-runner.js` -> `automate/scripts/pr-label-review-runner.mjs` com `PR_REVIEW_ROLE=qa`
+- `src/cto-runner.js` -> `automate/scripts/cto-project-supervisor.mjs` e `automate/scripts/cto-pr-finalizer.mjs`
+- `src/devops-runner.js` permanece como trilha separada para a fila propria de deploy
 
-- `src/developer-runner.js`
-- `src/security-runner.js`
-- `src/qa-runner.js`
-- `src/devops-runner.js`
-- `src/cto-runner.js`
-- `src/agent-dispatch-runner.js`
-- `automate/scripts/agent-project-dispatch.mjs`
-- `automate/scripts/cto-project-supervisor.mjs`
-- `automate/scripts/cto-staging-promotion.mjs`
+## Regra de leitura
 
-Quando a duvida envolver ownership, fila, selecao por labels/coluna ou leitura operacional do papel, use esses entry points e scripts junto com `skills/shared/README.md` e `automate/agents/runner-map.md`.
+Quando a duvida envolver ownership, fila ou runtime:
 
-## Legado
-
-Os workflows por papel e os sincronizadores antigos nao sao mais a trilha oficial de execucao recorrente. Quando ainda existirem wrappers ou scripts historicos no repositorio, trate-os como referencia legada ate remocao ou consolidacao completa no modelo atual.
+1. confira primeiro os entry points reais em `src/*-runner.js`
+2. confira a logica final em `automate/scripts/`
+3. trate `agent-project-dispatch.mjs`, `qa-project-review.mjs` e `security-project-review.mjs` como trilha legada quando nao estiverem no caminho real do entry point atual

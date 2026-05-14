@@ -87,6 +87,7 @@ Quando a etapa depender de mutacao remota no GitHub ou continuidade fora deste r
 Valide sempre:
 
 - a tag `agent:*` esperada para a etapa atual
+- as tags auxiliares `approved:security` e `approved:qa` quando a trilha estiver pronta para fechamento tecnico
 - a coluna real da issue
 - PR vinculado
 - conflito de merge
@@ -101,10 +102,11 @@ Regras centrais:
 - para os agents, o estado operacional valido e definido por coluna e tags, nao por `open` ou `closed`
 - o fluxo padrao de tags e sequencial: `agent:developer` -> `agent:security` -> `agent:qa`
 - `Developer` le apenas tasks sem tag de etapa ou com `agent:developer` em `Work` ou `Working`, e ao concluir troca para `agent:security`
-- `Security` le apenas tasks com `agent:security` em `Work` ou `Working`, e ao concluir troca para `agent:qa`
-- `Quality Assurance` le apenas tasks com `agent:qa` em `Work` ou `Working`, e ao concluir move para `In Review` ou devolve para `agent:security` ou `agent:developer`
-- o runner gerencial pode corrigir para `In Review` task que ja tenha evidencias de aprovacao de `Security` e `Q.A.` mas tenha ficado na coluna errada
-- a passagem de `In Review` para `Deploy` pertence a revisao humana final, fora da etapa dos agents
+- `Security` le apenas tasks com `agent:security` em `Work` ou `Working`, e ao concluir registra `approved:security`, troca para `agent:qa` ou devolve para `agent:developer`
+- `Quality Assurance` le apenas tasks com `agent:qa` em `Work` ou `Working`, e ao concluir registra `approved:qa`, devolve para `agent:security` ou `agent:developer`, ou move para `In Review` quando a validacao humana ainda for necessaria
+- o runner separado de `CTO` pode concluir a trilha quando `approved:security` e `approved:qa` coexistirem e houver PR vinculado com base em `staging`; nessa situacao ele aceita o PR para `staging` e move a task para `Done`
+- o runner gerencial pode continuar corrigindo para `In Review` task que ja tenha evidencias de aprovacao de `Security` e `Q.A.` mas tenha ficado na coluna errada
+- a passagem de `In Review` para `Deploy` continua pertencendo a revisao humana final, fora da etapa dos agents
 - `DevOps` le apenas tasks na coluna `Deploy` e coloca em producao o que foi aprovado ali
 - qualquer etapa pode abrir uma task paralela de infraestrutura com tag `agent:sysadmin` em `Work`, sempre separada da tarefa-mãe e com referência explícita para ela
 - `Sysadmin` le apenas tasks com `agent:sysadmin` em `Work` ou `Working`, resolve ou diagnostica o impedimento, depois troca a task paralela para `agent:security` e comenta na tarefa-mãe que o impedimento foi resolvido

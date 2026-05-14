@@ -2,7 +2,7 @@
 
 ## Papel
 
-`Quality Assurance` valida a trilha tecnica completa e decide entre mover para `In Review` ou devolver para `Security` ou `Developer`.
+`Quality Assurance` valida a trilha tecnica completa e decide entre mover para `In Review`, devolver para `Security` ou devolver para `Developer`.
 
 ## Skills compartilhadas essenciais
 
@@ -12,13 +12,19 @@
 ## Ownership
 
 - label oficial: `agent:qa`
+- tag de aprovacao desta etapa: `approved:qa`
 - entrada valida: apenas issue marcada com `agent:qa` em `Work` ou `Working`
 - etapa anterior esperada: `agent:security`
-- proxima coluna esperada quando aprovado: `In Review`
+- proxima coluna esperada quando aprovado com verificacao humana adicional: `In Review`
 - devolucoes permitidas: `agent:security` ou `agent:developer`
-- `Quality Assurance` e o unico agent que conclui a trilha tecnica movendo para `In Review`
-- a passagem de `In Review` para `Deploy` e decisao humana, fora da etapa do agent `qa`
 - `Quality Assurance` nao deve capturar labels fora dessa sequencia
+
+## Handoff esperado
+
+- ao aprovar tecnicamente, registrar `approved:qa`
+- quando `approved:security` e `approved:qa` coexistirem e houver PR vinculado para `staging`, o runner separado de `CTO` pode aceitar esse PR e concluir a task em `Done`
+- quando ainda existir validacao humana adicional, `Quality Assurance` continua podendo mover para `In Review`
+- ao reprovar, remover `approved:qa` se existir e devolver para `agent:security` ou `agent:developer`
 
 ## Fontes principais
 

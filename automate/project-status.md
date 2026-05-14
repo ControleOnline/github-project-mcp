@@ -2,58 +2,53 @@
 
 ## Fonte de verdade
 
-A associação oficial do fluxo é sempre o agente responsável real da tarefa.
+A leitura operacional de `QA` agora acontece pela PR aberta do `Developer`, nao por coluna do projeto.
 
 ## Entrada de QA
 
-A automação de QA só pode capturar uma tarefa quando:
+A automacao de `QA` so pode capturar uma PR quando:
 
-- a issue existir no fluxo operacional
-- o agente responsável atual estiver em `Quality Assurance`
+- a issue vinculada continua aberta
+- a issue foi criada por membro da equipe
+- existe PR aberta do `Developer` para `staging`
+- essa PR ainda nao recebeu `qa:accepted` nem `qa:rejected`
 
-## Saídas válidas
+## Saidas validas
 
-As únicas saídas válidas ao final da revisão de QA são:
+As unicas saidas validas ao final da revisao de `QA` sao:
 
-- `Developer`
-- `Security`
-- `In Review`
+- `qa:accepted`
+- `qa:rejected`
 
-## Regras de transição
+## Regras de transicao
 
-### `Quality Assurance` -> `Developer`
+### `QA` -> `qa:rejected`
 
-Use quando houver:
+Use quando houver qualquer desvio operacional objetivo, incluindo:
 
-- reprovação funcional
-- desvio técnico
-- desvio de conformidade
-- teste faltando
-- check crítico vermelho
-- composição cross-repo incompleta
-- ausência de evidência suficiente
+- PR fora de `staging`
+- branch da tarefa sem o numero da issue
+- uso direto de branch proibida
+- PR em draft
+- PR com conflito de merge
 
-### `Quality Assurance` -> `Security`
+Ao recusar:
 
-Use quando:
+- registre `qa:rejected` na PR
+- comente a issue de forma direta para orientar a proxima execucao do `Developer`
 
-- a entrega ainda depender de decisão ou aprofundamento de segurança
-- essa validação ainda não estiver explicitamente concluída
+### `QA` -> `qa:accepted`
 
-### `Quality Assurance` -> `In Review`
+Use quando a PR estiver operacionalmente valida para seguir no fluxo.
 
-Use quando:
+Ao aceitar:
 
-- a entrega estiver aprovada
-- a trilha técnica estiver completa
-- os checks relevantes estiverem aceitáveis
-- a segurança estiver concluída quando obrigatória
-- a task estiver pronta para verificação humana final
+- registre `qa:accepted` na PR
+- nao publique review de aprovacao no GitHub
 
-## Fallback operacional
+## Restricoes
 
-Se GraphQL não estiver disponível:
-
-- não inferir agente responsável por aproximação textual
-- registrar bloqueio operacional
-- não fingir mudança de agente responsável nem de coluna
+- `QA` nao aprova PR no GitHub Review
+- `QA` nao move task no projeto
+- `QA` nao finaliza task
+- somente `CTO` pode aprovar a PR e mover a task para `In Review`

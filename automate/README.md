@@ -5,9 +5,10 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 ## Agentes cobertos
 
 - `Developer`: implementa e entrega para `Security`
-- `Security`: valida autorização, `securityFilter`, exposição de dados e entrega para `Quality Assurance`
-- `Quality Assurance`: valida entrega, checks, composição entre PRs e move para `In Review` quando aprovada tecnicamente
-- `DevOps`: resolve conflitos operacionais, sincroniza ambientes e coloca em produção o que já foi aprovado por humano e movido para `Deploy`
+- `Security`: valida autorizacao, `securityFilter`, exposicao de dados, registra `approved:security` quando aprovar e entrega para `Quality Assurance`
+- `Quality Assurance`: valida entrega, checks, composicao entre PRs, registra `approved:qa` quando aprovar e decide entre devolucao, `In Review` ou handoff final para `CTO`
+- `DevOps`: resolve conflitos operacionais, sincroniza ambientes e coloca em producao o que ja foi aprovado por humano e movido para `Deploy`
+- `CTO`: supervisiona o ecossistema e, quando `approved:security` e `approved:qa` coexistirem, aceita o PR vinculado em `staging` e conclui a task em `Done`
 - `GitHub Operations Runner`: executa mutações de GitHub a partir do próprio GitHub Actions quando o runtime local dos agents não consegue concluir a operação
 
 ## Arquivos
@@ -22,6 +23,8 @@ Esta pasta concentra a política e a base executável dos agentes que rodam dire
 - `github-operations.md`: guia do runner dedicado a mutações no GitHub
 - `scripts/agent-flow-sync.mjs`: sincroniza label inicial de `Developer`, conflitos para `DevOps` e limpeza final
 - `scripts/github-operations.mjs`: executor genérico de mutações REST, GraphQL e mudanças de coluna no GitHub
+- `scripts/cto-project-supervisor.mjs`: auditoria estrutural do CTO
+- `scripts/cto-staging-promotion.mjs`: promocao final do CTO quando as tags `approved:security` e `approved:qa` estiverem presentes
 - `quality-assurance.md`: política central de QA
 - `security-review.md`: política central do analista de segurança
 - `project-status.md`: regras de transição usadas por QA
@@ -52,9 +55,9 @@ Permitir que o GitHub execute os fluxos de revisão de forma padronizada:
 6. revisar PR quando aplicável
 7. redirecionar conflito de merge para `DevOps`
 8. repassar a tarefa para o próximo agente responsável correto
-9. usar coluna para a transição técnica de `Q.A.` -> `In Review`
-10. deixar a passagem `In Review` -> `Deploy` para aprovação humana
-11. usar `Deploy` como fila de leitura exclusiva de `DevOps` para promoção em produção
+9. permitir que `Security` e `Quality Assurance` registrem suas aprovacoes em tags distintas
+10. permitir que o runner separado de `CTO` finalize a etapa tecnica quando essas duas tags coexistirem em uma task com PR para `staging`
+11. deixar a passagem `In Review` -> `Deploy` para aprovação humana quando essa trilha ainda for necessária
 12. oferecer um runner dedicado para mutações do GitHub quando o agent local estiver bloqueado por rede ou superfície de escrita
 
 ## Secrets esperados
@@ -140,7 +143,7 @@ Esta base está apontada para:
 - Os arquivos em `automate/scripts/` permanecem como compatibilidade e base compartilhada.
 - O agente de Developer entra pela coluna `Work`, mas a execução real passa a ser controlada pela atribuição ao agent.
 - Task nova em `Work` sem `agent:*` entra por padrão em `Developer`.
-- O agente de QA decide entre `Developer`, `Security` e `In Review`.
+- O agente de QA decide entre `Developer`, `Security`, `In Review` ou handoff final para `CTO` quando a dupla de tags de aprovacao ja estiver completa.
 - O agente de Security decide entre `Developer` e `Quality Assurance`.
 - A passagem de `In Review` para `Deploy` pertence à aprovação humana final.
 - Conflito de merge em PR aberto é desvio operacional para `DevOps`.

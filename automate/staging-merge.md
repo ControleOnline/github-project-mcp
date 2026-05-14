@@ -2,11 +2,29 @@
 
 ## Regra geral
 
-A promocao tecnica de `DevOps` so se conclui quando os merges obrigatorios em `staging` puderem ser executados com seguranca.
+A promocao tecnica de `staging` pode ser concluida por dois caminhos:
 
-## Quando o merge e obrigatorio
+- por `DevOps`, quando a etapa estiver na fila classica de composicao e deploy
+- pelo runner separado de `CTO`, quando a task ja trouxer `approved:security` e `approved:qa` e existir PR vinculado com base em `staging`
 
-Ao receber uma task de `Quality Assurance`:
+## Quando o merge pelo CTO e obrigatorio
+
+Quando o runner de `CTO` encontrar simultaneamente:
+
+- a tag `approved:security`
+- a tag `approved:qa`
+- PR vinculado apontando para `staging`
+
+nessa situacao ele deve:
+
+- aceitar o PR em `staging`
+- limpar labels operacionais residuais da issue
+- remover assignee tecnico residual quando existir
+- marcar a task como concluida em `Done`
+
+## Quando o merge por DevOps continua valido
+
+Ao receber uma task de `Quality Assurance` pela trilha tradicional:
 
 - atualizar a task branch com o `origin/master` atual
 - atualizar o branch `staging` com o `origin/master` atual
@@ -48,4 +66,4 @@ A automacao deve registrar:
 - quais repositorios foram mesclados
 - quais branches `staging` precisaram ser criados
 - quais merges ficaram bloqueados e por que
-- quando a coluna foi movida para `In Review`
+- quando a coluna foi movida para `In Review` ou `Done`

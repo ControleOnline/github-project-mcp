@@ -12,6 +12,7 @@ Hoje existem duas trilhas oficiais e complementares:
 Com isso:
 
 - `Developer`, `Security`, `Quality Assurance`, `DevOps` e `CTO` continuam tendo comportamento real definido pelos entry points em `src/`, wrappers em `automate/agents/` e scripts em `automate/scripts/`;
+- `Security`, `Quality Assurance` e `CTO` seguem com runners separados, cada um com seu proprio entry point em `src/`;
 - o `GitHub Manager Runner` concentra auditoria gerencial, correcoes de coluna, labels, assignees, comentarios, reviews e outras mutacoes remotas quando a sessao local nao deve fingir escrita no GitHub;
 - os workflows antigos por papel deixam de ser a trilha oficial de execucao recorrente, mas continuam como referencia historica e ponto explicito de desligamento do canal anterior.
 
@@ -42,6 +43,7 @@ Os entry points de papel continuam sendo a referencia de comportamento do ecossi
 - `src/agent-dispatch-runner.js`
 - `automate/scripts/agent-project-dispatch.mjs`
 - `automate/scripts/cto-project-supervisor.mjs`
+- `automate/scripts/cto-staging-promotion.mjs`
 
 Quando a duvida envolver ownership, fila, selecao por labels/coluna ou leitura operacional do papel, use esses entry points e scripts junto com `skills/shared/README.md` e `automate/agents/runner-map.md`.
 

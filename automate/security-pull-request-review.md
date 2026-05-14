@@ -2,53 +2,42 @@
 
 ## Escopo
 
-Estas regras definem como o analista de segurança deve agir sobre PRs ligados a uma issue em revisão sob responsabilidade do agent `Security`.
+Estas regras definem como `Security` deve agir sobre PRs do `Developer`.
 
-## Regras de aprovação
+## Regras de aceite
 
-Um PR só pode receber `APPROVE` quando a decisão final da task for `Quality Assurance`.
+Quando a PR estiver operacionalmente valida para a etapa de seguranca, `Security` deve:
 
-Antes disso, validar:
+- registrar `security:accepted` na propria PR
+- nao publicar `APPROVE` no GitHub Review
+- deixar a aprovacao final da PR para o `CTO`
 
-- PR ligado à issue correta
-- diff aderente ao escopo da task
-- `AGENTS.md` aplicável consultado
-- camada de autorização realmente lida
-- `securityFilter` validado quando a entidade exigir
-- regra de negócio sensível confirmada ou definida
-- ausência de brecha material de leitura, escrita, alteração ou exclusão indevida
+## Regras de recusa
 
-## Regras de reprovação
+Quando a PR estiver fora da politica operacional, `Security` deve:
 
-Um PR deve receber `REQUEST_CHANGES` quando a decisão final da task for `Developer`.
+- registrar `security:rejected` na propria PR
+- comentar a issue de forma direta e explicativa
+- nao publicar `REQUEST_CHANGES` no GitHub Review
 
-O review precisa apontar objetivamente:
+Motivos minimos de recusa operacional:
 
-- o risco encontrado
-- o impacto objetivo
-- a regra de autorização ou negócio afetada
-- o que precisa ser corrigido
+- PR nao aponta para `staging`
+- branch do developer nao contem o numero da issue
+- branch proibida foi usada diretamente
+- PR esta em draft
+- PR esta com conflito de merge
 
-Se a credencial ativa da automação coincidir com a autoria do PR:
+## Comentario obrigatorio na issue
 
-- não publicar `APPROVE` nem `REQUEST_CHANGES`
-- registrar comentário rastreável no PR
-- manter a decisão da task com base na evidência, sem simular review válido
+Ao recusar, o comentario deve informar:
 
-## Comentário obrigatório
+- qual PR foi recusada
+- por que ela foi recusada
+- que a proxima execucao do `Developer` deve corrigir a branch da tarefa e seguir com nova PR para `staging`
 
-Ao concluir a revisão, o agente deve deixar comentário rastreável em issue e PR, quando aplicável, contendo:
+## Restricao de ownership
 
-- escopo da análise
-- entidades e services avaliados
-- situação do `securityFilter`
-- decisão final
-- próximo agent responsável da task
-
-## Critério conservador
-
-Se houver dúvida material ou falta de evidência:
-
-- não aprovar
-- não repassar para `Quality Assurance`
-- devolver para `Developer` ou registrar bloqueio operacional real, conforme o caso
+- `Security` nao aprova PR no GitHub Review
+- `Security` nao finaliza task
+- somente `CTO` aprova a PR e move a task para `In Review`

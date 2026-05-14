@@ -13,10 +13,10 @@ const RETRY = githubRetryConfig('CTO_PR_FINALIZER');
 const DEFAULT_ALLOWED_AUTHOR_ASSOCIATIONS = 'OWNER,MEMBER,COLLABORATOR';
 const DEFAULT_STAGING_BRANCH = 'staging';
 const DEFAULT_IN_REVIEW_STATUS = 'In Review';
-const QA_ACCEPTED_LABEL = 'qa:accepted';
-const QA_REJECTED_LABEL = 'qa:rejected';
-const SECURITY_ACCEPTED_LABEL = 'security:accepted';
-const SECURITY_REJECTED_LABEL = 'security:rejected';
+const QA_ACCEPTED_LABELS = ['qa:accepted', 'approved:qa'];
+const QA_REJECTED_LABELS = ['qa:rejected', 'rejected:qa'];
+const SECURITY_ACCEPTED_LABELS = ['security:accepted', 'approved:security'];
+const SECURITY_REJECTED_LABELS = ['security:rejected', 'rejected:security'];
 
 function env(name, fallback = '') {
   return (process.env[name] || fallback).trim();
@@ -31,6 +31,10 @@ function parseCsv(value) {
 
 function getToken() {
   return env('GITHUB_TOKEN') || env('GH_TOKEN');
+}
+
+function hasAnyLabel(labels, candidates) {
+  return candidates.some((label) => labels.has(label));
 }
 
 async function githubGraphQL(query, variables = {}) {
@@ -193,20 +197,16 @@ async function getProjectSnapshot(org, projectNumber) {
       }
     }
   }`;
-
   const firstPage = await githubGraphQL(query, { org, projectNumber, cursor: null });
   const project = firstPage?.organization?.projectV2;
   if (!project) return firstPage;
-
   const items = [...(project.items?.nodes || [])];
   let pageInfo = project.items?.pageInfo;
-
   while (pageInfo?.hasNextPage && pageInfo.endCursor) {
     const page = await githubGraphQL(query, { org, projectNumber, cursor: pageInfo.endCursor });
     items.push(...(page?.organization?.projectV2?.items?.nodes || []));
     pageInfo = page?.organization?.projectV2?.items?.pageInfo;
   }
-
   project.items.nodes = items;
   return firstPage;
 }
@@ -275,8 +275,8 @@ function branchContainsIssueNumber(headRefName, issueNumber) {
 
 function prIsReady(pr, issueNumber, stagingBranch) {
   const labels = new Set(pullRequestLabels(pr));
-  if (labels.has(QA_REJECTED_LABEL) || labels.has(SECURITY_REJECTED_LABEL)) return false;
-  if (!labels.has(QA_ACCEPTED_LABEL) || !labels.has(SECURITY_ACCEPTED_LABEL)) return false;
+  if (hasAnyLabel(labels, QA_REJECTED_LABELS) || hasAnyLabel(labels, SECURITY_REJECTED_LABELS)) return false;
+  if (!hasAnyLabel(labels, QA_ACCEPTED_LABELS) || !hasAnyLabel(labels, SECURITY_ACCEPTED_LABELS)) return false;
   if (!isOpenPullRequest(pr)) return false;
   if (pr.isDraft) return false;
   if ((pr.baseRefName || '').trim().toLowerCase() !== stagingBranch.toLowerCase()) return false;
@@ -421,6 +421,7 @@ async function main() {
     },
     stagingBranch,
     inReviewStatus,
+    acceptedLabelsRecognized: [...QA_ACCEPTED_LABELS, ...SECURITY_ACCEPTED_LABELS],
     candidate: candidate ? serializeCandidate(candidate.item, candidate.pullRequest) : null,
   };
 

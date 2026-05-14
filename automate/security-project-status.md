@@ -2,60 +2,53 @@
 
 ## Fonte de verdade
 
-A associacao oficial do fluxo e sempre o agente responsavel real da task.
+A leitura operacional de `Security` agora acontece pela PR aberta do `Developer`, nao por coluna do projeto.
 
 ## Entrada de Security
 
-A automação de Security só pode capturar uma task quando:
+A automacao de `Security` so pode capturar uma PR quando:
 
-- a issue existir no fluxo operacional
-- o agente responsável atual estiver em `Security`
+- a issue vinculada continua aberta
+- a issue foi criada por membro da equipe
+- existe PR aberta do `Developer` para `staging`
+- essa PR ainda nao recebeu `security:accepted` nem `security:rejected`
 
-## Saídas válidas
+## Saidas validas
 
-As únicas saídas válidas ao final da revisão são:
+As unicas saidas validas ao final da revisao sao:
 
-- `Developer`
-- `Quality Assurance`
+- `security:accepted`
+- `security:rejected`
 
-Exceção transitória desta base:
+## Regras de transicao
 
-- quando `SECURITY_USE_COPILOT=true` e ainda não existir decisão estruturada suficiente, a automação pode manter a task em `Security` apenas para aguardar o apoio investigativo do Copilot cloud agent
+### `Security` -> `security:rejected`
 
-## Regras de transição
+Use quando houver qualquer desvio operacional objetivo, incluindo:
 
-### `Security` -> `Developer`
+- PR fora de `staging`
+- branch da tarefa sem o numero da issue
+- uso direto de branch proibida
+- PR em draft
+- PR com conflito de merge
 
-Use quando houver:
+Ao recusar:
 
-- brecha de autorização
-- `securityFilter` ausente, incompleto ou inefetivo
-- regra de negócio sensível ausente ou incorreta
-- exposição material de dados
-- risco previsível sem mitigação comprovada
-- evidência insuficiente para sustentar aprovação
+- registre `security:rejected` na PR
+- comente a issue de forma direta para orientar a proxima execucao do `Developer`
 
-### `Security` -> `Quality Assurance`
+### `Security` -> `security:accepted`
 
-Use quando:
+Use quando a PR estiver operacionalmente valida para seguir no fluxo.
 
-- a análise de segurança estiver concluída
-- os riscos relevantes estiverem cobertos
-- o `securityFilter` estiver validado
-- as regras de negócio sensíveis estiverem claras
-- não restarem lacunas materiais de autorização
+Ao aceitar:
 
-## Fallback operacional
+- registre `security:accepted` na PR
+- nao publique review de aprovacao no GitHub
 
-Se GraphQL não estiver disponível:
+## Restricoes
 
-- não inferir agente responsável por aproximação textual
-- registrar bloqueio operacional de infraestrutura
-- seguir com a coleta por meios suportados do GitHub quando possível
-- não fingir mudança de agente responsável que não foi executada
-
-## Apoio investigativo
-
-Quando `SECURITY_USE_COPILOT=true`, a rodada pode acionar o Copilot cloud agent para aprofundar a investigação de uma issue ainda sem decisão estruturada.
-
-Esse apoio não muda sozinho o agente responsável da task. A mudança continua condicionada à decisão final registrada pelo fluxo de Security.
+- `Security` nao aprova PR no GitHub Review
+- `Security` nao move task no projeto
+- `Security` nao finaliza task
+- somente `CTO` pode aprovar a PR e mover a task para `In Review`

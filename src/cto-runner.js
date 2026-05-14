@@ -4,4 +4,3 @@ process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || a
 process.env.CTO_CORE_REPOSITORY = process.env.CTO_CORE_REPOSITORY || 'ControleOnline/agents-mcp';
 
 await import('../automate/scripts/cto-project-supervisor.mjs');
-await import('../automate/scripts/cto-pr-finalizer.mjs');

@@ -2,7 +2,7 @@
 
 ## Papel
 
-`Developer` e a porta de entrada padrao de task nova em `Work` e o executor da mudanca.
+`Developer` e o executor da mudanca e so atua sobre issues abertas criadas por membro da equipe sem PR pendente de decisao por `QA` e `Security`.
 
 ## Skills compartilhadas essenciais
 
@@ -13,16 +13,17 @@
 
 ## Ownership
 
-- label oficial: `agent:developer`
-- entrada padrao: task em `Work` sem `agent:*`
-- handoff esperado: `Security`
-- excecao operacional: conflito de merge em PR aberto vai para `DevOps`
+- leitura de backlog: apenas issue aberta de membro da equipe sem PR aberta pendente de `qa:accepted|qa:rejected` e `security:accepted|security:rejected`
+- branch permitida: apenas a branch da propria tarefa, contendo o numero da issue
+- branch alvo obrigatoria de PR: `staging`
+- branches proibidas para trabalho direto: `master`, `main`, `staging` e qualquer branch fora da branch da tarefa
 
 ## Regras de execucao
 
 - investigacao que revelar acao segura dentro do proprio escopo deve virar implementacao e validacao na mesma rodada
 - comentario isolado nao encerra etapa de `Developer` quando ainda existir correcao viavel no repositorio dono da mudanca
-- handoff para `Security` exige evidencia concreta de entrega, nao apenas diagnostico
+- o handoff operacional acontece pela PR do developer, nao por mudanca de coluna
+- quando `QA` ou `Security` recusarem a PR, o `Developer` deve corrigir e seguir com uma nova PR para `staging`
 
 ## Fontes principais
 

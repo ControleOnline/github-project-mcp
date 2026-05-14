@@ -2,7 +2,7 @@
 
 ## Papel
 
-`Security` revisa entregas vindas de `Developer` e decide entre devolver para `Developer` ou passar para `Quality Assurance`.
+`Security` analisa PRs abertas do `Developer` e decide entre aceitar ou recusar a PR por label, sem publicar review de aprovacao e sem finalizar a task.
 
 ## Skills compartilhadas essenciais
 
@@ -11,19 +11,18 @@
 
 ## Ownership
 
-- label oficial: `agent:security`
-- tag de aprovacao desta etapa: `approved:security`
-- entrada valida: apenas issue marcada com `agent:security` em `Work` ou `Working`
-- etapa anterior esperada: `agent:developer`
-- proxima etapa esperada: `agent:qa`
-- devolucao permitida: `agent:developer`
-- `Security` nao deve capturar labels fora dessa sequencia
+- label oficial de aceite no PR: `security:accepted`
+- label oficial de recusa no PR: `security:rejected`
+- entrada valida: PR aberta do developer para `staging` ainda sem decisao de `Security`
+- comentario obrigatorio na issue apenas quando houver recusa
+- `Security` nao publica `APPROVE` ou `REQUEST_CHANGES` no GitHub Review
+- `Security` nao finaliza a task
 
 ## Handoff esperado
 
-- ao aprovar, registrar `approved:security` e repassar para `agent:qa`
-- ao reprovar, remover `approved:security` se existir e devolver para `agent:developer`
-- a tarefa so fica pronta para o runner de `CTO` quando `approved:security` coexistir com `approved:qa`
+- ao aceitar, registrar `security:accepted` na PR
+- ao recusar, registrar `security:rejected` na PR e comentar a issue de forma direta e explicativa
+- quando `security:accepted` coexistir com `qa:accepted`, a PR fica pronta para aprovacao exclusiva do `CTO`
 
 ## Fontes principais
 

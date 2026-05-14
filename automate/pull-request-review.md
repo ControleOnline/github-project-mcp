@@ -2,50 +2,42 @@
 
 ## Escopo
 
-Estas regras definem como a automacao de QA deve agir sobre PRs ligados a uma issue em revisao.
+Estas regras definem como `QA` deve agir sobre PRs do `Developer`.
 
-## Regras de aprovacao
+## Regras de aceite
 
-Um PR so pode receber `APPROVE` quando a decisao final da issue for `DevOps`.
+Quando a PR estiver operacionalmente valida, `QA` deve:
 
-Para isso, a automacao deve validar:
+- registrar `qa:accepted` na propria PR
+- nao publicar `APPROVE` no GitHub Review
+- deixar a aprovacao final da PR para o `CTO`
 
-- PR ligado a issue correta
-- diff aderente ao escopo
-- `AGENTS.md` aplicavel consultado
-- checks relevantes aceitaveis no commit atual
-- testes automatizados coerentes com o risco
-- ausencia de bloqueio funcional ou tecnico
+## Regras de recusa
 
-## Regras de reprovação
+Quando a PR estiver fora da politica operacional, `QA` deve:
 
-Um PR deve receber `REQUEST_CHANGES` quando a decisao final da issue for `Developer`.
+- registrar `qa:rejected` na propria PR
+- comentar a issue de forma direta e explicativa
+- nao publicar `REQUEST_CHANGES` no GitHub Review
 
-O review deve apontar objetivamente:
+Motivos minimos de recusa operacional:
 
-- o desvio encontrado
-- o impacto
-- o que precisa ser corrigido
+- PR nao aponta para `staging`
+- branch do developer nao contem o numero da issue
+- branch proibida foi usada diretamente
+- PR esta em draft
+- PR esta com conflito de merge
 
-Se a credencial ativa da automacao coincidir com a autoria do PR:
+## Comentario obrigatorio na issue
 
-- nao publicar `APPROVE` nem `REQUEST_CHANGES`
-- registrar comentario rastreavel no PR
-- manter a decisao da task com base na evidencia, sem simular review valido
+Ao recusar, o comentario deve informar:
 
-## Comentario obrigatorio
+- qual PR foi recusada
+- por que ela foi recusada
+- que a proxima execucao do `Developer` deve corrigir a branch da tarefa e seguir com nova PR para `staging`
 
-Ao concluir a revisao, a automacao deve deixar comentario rastreavel:
+## Restricao de ownership
 
-- issue principal
-- PR principal
-- decisao final
-- proximo agent responsavel da task
-
-## Criterio conservador
-
-Se houver duvida relevante ou falta de evidencia:
-
-- nao aprovar
-- nao mover para `DevOps`
-- devolver para `Developer` ou registrar bloqueio operacional, conforme o caso
+- `QA` nao aprova PR no GitHub Review
+- `QA` nao finaliza task
+- somente `CTO` aprova a PR e move a task para `In Review`

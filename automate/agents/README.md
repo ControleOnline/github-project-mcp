@@ -29,6 +29,6 @@ Esta pasta organiza os pontos de entrada e a documentação operacional por agen
 - PR com `Scrutinizer` em `error` ou `failure`, sem `workflow_run` local observável no head atual, deve ser lido como bloqueio repo-local de composição, onboarding ou automação, e não como simples fila nova do agent
 - PR com run local em `action_required`, mesmo sem jobs consumíveis na API atual, continua sendo bloqueio real do repositório alvo até surgir nova evidência do próprio repositório
 - enquanto esse tipo de gate continuar sem delta técnico verificável, a trilha correta é preservar o ownership atual ou o estado de override já ativo, e não reciclar a issue entre agents apenas para “andar a fila”
-- quando o problema dominante estiver nesse gate repo-local, o encaminhamento correto do CTO é registrar a evidência, corrigir o núcleo `cto-mcp` se houver falha estrutural nele, e evitar leitura enganosa de progresso na issue consumidora
+- quando o problema dominante estiver nesse gate repo-local, o encaminhamento correto do CTO é registrar a evidência, corrigir o núcleo `agents-mcp` se houver falha estrutural nele, e evitar leitura enganosa de progresso na issue consumidora
 
 Com isso, a árvore deixa explícito onde começa cada fluxo de agent, sem quebrar os workflows já publicados.

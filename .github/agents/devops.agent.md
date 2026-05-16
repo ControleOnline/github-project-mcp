@@ -21,7 +21,7 @@ Este wrapper deve permanecer fino. Antes de agir, leia e siga nesta ordem:
 - tipo: projeto raiz
 - familia: automacao
 - branch base operacional: `master`
-- alvo preferencial de PR: `dev`
+- alvo preferencial de PR: `staging`
 - `AGENTS.md` local: presente
 
 Leia o `AGENTS.md` mais proximo antes de editar codigo. Se a alteracao tocar apenas o repositorio atual, trabalhe aqui. Se tambem exigir atualizacao do projeto agregador ou de outro modulo dono da mudanca, preserve a separacao de ownership.

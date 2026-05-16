@@ -15,7 +15,7 @@ Antes de agir em qualquer repositório:
 3. leia o `AGENTS.md` mais próximo do código afetado
 4. confirme o estado atual no GitHub
 
-Se houver conflito entre um wrapper local e esta base, prefira esta base e o arquivo central do tipo no `cto-mcp`, salvo quando o estado real do repositório exigir adaptação explícita.
+Se houver conflito entre um wrapper local e esta base, prefira esta base e o arquivo central do tipo no `agents-mcp`, salvo quando o estado real do repositório exigir adaptação explícita.
 
 ## Conhecimento do sistema
 

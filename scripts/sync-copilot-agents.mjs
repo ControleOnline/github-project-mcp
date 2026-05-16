@@ -105,7 +105,7 @@ function parseGitmodules(rootPath) {
 }
 
 function detectReviewTarget() {
-  return "dev";
+  return "staging";
 }
 
 function detectDefaultBranch() {

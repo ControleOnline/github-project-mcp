@@ -57,8 +57,12 @@ Antes de editar qualquer arquivo:
 - confirme qual repositório realmente é dono da mudança
 - se o projeto for um superprojeto com submódulos, execute a mudança no submódulo correto quando o problema pertencer a ele
 - só altere o superprojeto quando a demanda realmente exigir ajuste de integração, pin de submódulo, workflow, bootstrap ou configuração do agregador
+- respeite restrições explícitas de organização definidas no contexto da execução, na issue ou no `AGENTS.md` local
+- no projeto `frethical`, o `Developer` só pode atuar em repositórios da organização `ControleOnline`
 
 O `AGENTS.md` local e o estado real do repositório definem a posição operacional desse checkout no ecossistema.
+
+Se a issue, o repositório dono da mudança ou a dependência principal apontarem para outra organização fora do escopo permitido, não implemente ali. Registre o bloqueio objetivo no GitHub e devolva a decisão ao `CTO`.
 
 ## Branching e sincronização
 

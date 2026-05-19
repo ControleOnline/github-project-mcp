@@ -68,6 +68,13 @@ Essa trilha existe para:
 - executar mutacoes REST ou GraphQL autorizadas
 - corrigir inconsistencias operacionais de coluna e labels
 
+Guardrails desta trilha:
+
+- a auditoria recorrente do `GitHub Manager Runner` deve permanecer em leitura ou `dry_run` por padrao
+- mutacoes gerenciais automaticas nao substituem a aprovacao exclusiva do `CTO`
+- promover task para `In Review`, aprovar PR e concluir promocao em `staging` continua pertencendo apenas ao runner de `CTO`
+- use o `GitHub Manager Runner` para mutacao explicita autorizada ou manutencao gerencial compativel com essa fronteira
+
 ## Issue Flow Governance
 
 Valide sempre:
